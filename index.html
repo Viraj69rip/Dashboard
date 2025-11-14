@@ -1,0 +1,479 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Void Store Dashboard</title>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <style>
+    :root{
+      --accent:#10a37f;
+      --muted:#9aa1a6;
+      --bg:#e4e7eb;
+      --glass: rgba(255,255,255,0.36);
+      --glass-2: rgba(255,255,255,0.22);
+      --card-border: rgba(255,255,255,0.36);
+    }
+
+    /* base */
+    *{box-sizing:border-box;font-family:Inter,system-ui,Arial,Helvetica,sans-serif}
+    html,body{height:100%;margin:0;background:linear-gradient(135deg,#c9d6ff 0%, #e2e2f0 100%);color:#222}
+    h1,h2,h3,h4,h5,h6{margin:0;padding:0}
+    button{cursor:pointer}
+
+    /* layout */
+    .layout{display:flex;min-height:100vh;align-items:stretch}
+    .sidebar{
+      width:220px;padding:26px;border-right:1px solid rgba(255,255,255,0.28);
+      background:var(--glass-2);backdrop-filter:blur(10px);flex-shrink:0;
+      box-shadow: 0 6px 20px rgba(12,24,40,0.03);
+    }
+    .logo{font-weight:800;color:var(--accent);margin-bottom:20px;font-size:18px}
+    .nav a{
+      display:block;padding:10px 8px;border-radius:10px;text-decoration:none;margin-bottom:8px;color:#223;font-weight:600;
+      transition:all .22s ease;
+    }
+    .nav a:hover{transform:translateX(6px);opacity:.95}
+    .nav a.active{background:rgba(16,163,127,0.16);color:var(--accent);box-shadow: inset 0 -2px 0 rgba(0,0,0,0.02)}
+
+    .main{flex:1;padding:26px 34px;min-width:0;min-height:100vh}
+
+    /* top cards */
+    .top{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:18px}
+    .card{
+      flex:1;min-width:220px;padding:18px;border-radius:14px;border:1px solid var(--card-border);
+      background:var(--glass);backdrop-filter:blur(10px);box-shadow: 0 8px 30px rgba(20,30,60,0.04);
+      transform:translateY(6px);opacity:0;animation:fadeInUp .44s ease forwards;
+    }
+    .card:nth-child(2){animation-delay:.06s}
+    .card:nth-child(3){animation-delay:.12s}
+    .card h4{margin:0;color:#445;font-size:14px;font-weight:700}
+    .big{font-size:20px;margin-top:8px;font-weight:800}
+
+    @keyframes fadeInUp{
+      from { transform: translateY(10px); opacity:0 }
+      to   { transform: translateY(0);  opacity:1 }
+    }
+
+    .content{display:flex;gap:20px;align-items:flex-start}
+    .left{flex:1;min-width:0}
+    .right{width:360px;flex-shrink:0}
+
+    /* panels */
+    .panel{
+      background:var(--glass);border:1px solid var(--card-border);backdrop-filter:blur(12px);
+      padding:18px;border-radius:14px;margin-bottom:18px;box-shadow:0 6px 20px rgba(0,0,0,0.04);
+      transform:translateY(8px);opacity:0;animation:fadeInUp .46s ease forwards;
+    }
+    .panel:nth-of-type(1){animation-delay:.06s}
+    .panel h3{font-size:18px;margin-bottom:8px;color:#1f2937}
+
+    /* table */
+    table{width:100%;border-collapse:collapse;margin-top:8px;table-layout:fixed}
+    thead th{
+      padding:12px 12px;font-size:13px;color:#475569;border-bottom:1px solid rgba(0,0,0,0.05);
+      text-align:left;font-weight:700; background:transparent;
+    }
+    tbody td{
+      padding:14px 12px;border-bottom:1px solid rgba(0,0,0,0.03);font-size:14px;color:#28343a;
+      vertical-align:middle;
+      transition:background .18s ease, transform .12s ease;
+    }
+    tbody tr:hover td{ background: rgba(255,255,255,0.28); transform: translateX(2px); }
+
+    /* column widths and spacing */
+    thead th:nth-child(1), tbody td:nth-child(1){ width:38%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    thead th:nth-child(2), tbody td:nth-child(2){ width:32%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    thead th:nth-child(3), tbody td:nth-child(3){ width:12%; text-align:right; padding-right:22px; }
+    thead th:nth-child(4), tbody td:nth-child(4){ width:18%; text-align:left; padding-left:18px; color:#4b5563; }
+
+    .col-profit{ text-align:right; padding-right:22px; font-weight:600 }
+    .col-date{ font-size:13px; color:#374151; white-space:nowrap }
+
+    /* badges */
+    .status-badge{padding:6px 12px;border-radius:12px;font-weight:700;font-size:13px;display:inline-block}
+    .status-paid{background:rgba(16,163,127,0.12);color:#056a52;border:1px solid rgba(16,163,127,0.09)}
+    .status-pending{background:rgba(244,197,61,0.12);color:#8b5e00;border:1px solid rgba(244,197,61,0.08)}
+    .status-active{background:rgba(16,163,127,0.12);color:#056a52;border:1px solid rgba(16,163,127,0.09)}
+    .status-badge{transform:scale(.96);transition:transform .18s ease}
+    .status-badge:hover{transform:scale(1)}
+
+    /* search */
+    .search-row{display:flex;gap:10px;align-items:center;margin-bottom:12px}
+    .search-input{flex:1;padding:12px 14px;border-radius:12px;border:1px solid rgba(0,0,0,0.04);background:rgba(255,255,255,0.28);}
+
+    /* iframe area */
+    .iframe-container{position:relative;width:100%;min-height:640px;overflow:auto;border-radius:12px;border:1px solid var(--card-border);background:var(--glass-2);padding:12px}
+    .iframe-inner{width:100%;height:820px;border:0;display:block}
+
+    /* right column sticky */
+    .right .panel{position:sticky;top:22px}
+
+    /* animation helpers for nav change */
+    .view{display:none;opacity:0;transform:translateY(6px);transition:opacity .28s ease, transform .28s ease}
+    .view.active{display:block;opacity:1;transform:none}
+
+    /* subtle hover for cards/panels */
+    .card:hover, .panel:hover{transform:translateY(-4px);box-shadow:0 14px 40px rgba(11,26,40,0.06)}
+
+    /* fonts & small */
+    .small{font-size:13px;color:#6b7280}
+
+    @media(max-width:1100px){
+      .right{width:320px}
+      thead th:nth-child(1){width:40%}
+      thead th:nth-child(2){width:30%}
+    }
+    @media(max-width:900px){
+      .layout{flex-direction:column}
+      .sidebar{width:100%;display:flex;flex-direction:row;gap:12px;align-items:center}
+      .nav{display:flex;gap:8px}
+      .main{padding:18px}
+      .content{flex-direction:column}
+      .right{width:100%}
+      .iframe-inner{height:1200px}
+      .iframe-container{min-height:460px}
+      thead th:nth-child(1){width:50%}
+      thead th:nth-child(2){width:30%}
+    }
+
+  </style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar">
+      <div class="logo">Void Store</div>
+      <nav class="nav" aria-label="main nav">
+        <a id="nav-dashboard" class="active">Dashboard</a>
+        <a id="nav-customer">Customer Data</a>
+        <a id="nav-entry">Entry Form</a>
+        <a id="nav-invoice">Invoice Generator</a>
+      </nav>
+    </aside>
+
+    <main class="main">
+      <!-- Dashboard view -->
+      <section id="view-dashboard" class="view active">
+        <div class="top">
+          <div class="card"><h4>Total Earning</h4><div class="big" id="totalEarning">₹ 0.00</div></div>
+          <div class="card"><h4>Total Orders</h4><div class="big" id="totalOrders">0</div></div>
+          <div class="card"><h4>Total Profit</h4><div class="big" id="totalProfitTop">₹ 0.00</div></div>
+        </div>
+
+        <div class="content">
+          <div class="left">
+            <div class="panel">
+              <h3>Active Listing</h3>
+              <table id="entriesTableDashboard" aria-describedby="Active Listing">
+                <thead>
+                  <tr>
+                    <th>Sub. Name</th>
+                    <th>Status</th>
+                    <th style="text-align:right">Profit</th>
+                    <th>Date</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+
+          <aside class="right">
+            <div class="panel">
+              <h3>Profit by Product</h3>
+              <canvas id="profitChart" height="220"></canvas>
+            </div>
+
+            <div class="panel">
+              <h3>Overview</h3>
+              <p class="small">Total Entries: <b id="countEntries">0</b></p>
+              <p class="small">Total Profit: <b id="totalProfit">₹ 0.00</b></p>
+            </div>
+          </aside>
+        </div>
+      </section>
+
+      <!-- Customer Data view -->
+      <section id="view-customer" class="view" aria-hidden="true">
+        <div class="panel">
+          <h3>Customer Data</h3>
+          <div class="search-row">
+            <input id="customerSearch" class="search-input" placeholder="Search customer..." />
+            <button id="clearSearch" style="padding:10px 14px;border-radius:10px;border:1px solid rgba(0,0,0,0.04);background:var(--glass-2)">Clear</button>
+          </div>
+
+          <div style="overflow:auto">
+            <table id="customerTable" aria-describedby="Customer Data">
+              <thead>
+                <tr><th>Customer</th><th>Product</th><th style="text-align:right">Price</th><th>Date</th></tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <!-- Entry Form view (embedded google form) -->
+      <section id="view-entry" class="view" aria-hidden="true">
+        <div class="panel">
+          <h3>Entry Form</h3>
+          <div class="iframe-container">
+            <iframe class="iframe-inner"
+                    src="https://docs.google.com/forms/d/e/1FAIpQLSeOAk5-YgxpVINsL6v3_c2ggwS_MZ_iDQRz1679hAxW6DcgUw/viewform?embedded=true"
+                    title="Entry Form"></iframe>
+          </div>
+        </div>
+      </section>
+
+      <!-- Invoice Generator view (embedded external page) -->
+      <section id="view-invoice" class="view" aria-hidden="true">
+        <div class="panel">
+          <h3>Invoice Generator</h3>
+          <div class="iframe-container">
+            <iframe class="iframe-inner"
+              src="https://viraj69rip.github.io/Invoice-From-Void-PC-Games/"
+              title="Invoice Generator - Void PC Games"></iframe>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+<script>
+/* ---------- config ---------- */
+const SHEET_ID = "1Eat5aTUzw6Ck2fZG-Vf_d1g9WAMFTlNcZd0yLiotUJw";
+const SHEET_NAME = "Form responses 1";
+const FEED_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+
+/* ---------- helpers ---------- */
+function escapeHtml(s){ return (s||"").toString().replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
+function formatINR(n){ return "₹ "+Number(n||0).toLocaleString("en-IN",{minimumFractionDigits:2}); }
+function parseGoogleJSON(txt){ const s=txt.indexOf("{"), e=txt.lastIndexOf("}"); return JSON.parse(txt.slice(s,e+1)); }
+
+/* Robust date parser -> outputs dd/mm/yy and time */
+function parseDT(cell){
+  if(!cell) return {date:"", time:""};
+  // 1) If formatted string present (cell.f)
+  if(typeof cell.f === 'string'){
+    const f = cell.f.trim();
+    let m = f.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:\s+(\d{1,2}:\d{2}(?::\d{2})?))?/);
+    if(m){
+      const d = m[1].padStart(2,'0'), mo = m[2].padStart(2,'0'), yy = (String(m[3]).length===4?String(m[3]).slice(2):String(m[3]).padStart(2,'0'));
+      const time = m[4] || "";
+      return { date: `${d}/${mo}/${yy}`, time };
+    }
+    if(f.includes("Date(")){
+      const nums = (f.match(/\d+/g)||[]).map(Number);
+      if(nums.length >= 3){
+        const y = nums[0], m0 = nums[1], d = nums[2];
+        const hh = nums[3]||0, mm = nums[4]||0, ss = nums[5]||0;
+        const mo = String(m0+1).padStart(2,'0');
+        return { date: `${String(d).padStart(2,'0')}/${mo}/${String(y).slice(2)}`, time: `${String(hh).padStart(2,'0')}:${String(mm).padStart(2,'0')}:${String(ss).padStart(2,'0')}` };
+      }
+    }
+  }
+  // 2) cell.v common cases
+  if(typeof cell.v === 'string'){
+    const s = cell.v.trim();
+    const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/);
+    if(iso){
+      const y = iso[1], mo = iso[2], d = iso[3], hh = iso[4], mm = iso[5], ss = iso[6];
+      return { date: `${d}/${mo}/${y.slice(2)}`, time: `${hh}:${mm}:${ss}` };
+    }
+    const m2 = s.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:\s+(\d{1,2}:\d{2}(?::\d{2})?))?/);
+    if(m2){
+      const d = m2[1].padStart(2,'0'), mo = m2[2].padStart(2,'0'), yy = (String(m2[3]).length===4?String(m2[3]).slice(2):String(m2[3]).padStart(2,'0'));
+      return { date: `${d}/${mo}/${yy}`, time: (m2[4]||"") };
+    }
+  }
+  // fallback
+  return { date:"", time:"" };
+}
+
+/* ---------- view & nav ---------- */
+const views = {
+  dashboard: document.getElementById('view-dashboard'),
+  customer: document.getElementById('view-customer'),
+  entry: document.getElementById('view-entry'),
+  invoice: document.getElementById('view-invoice')
+};
+const navEls = {
+  dashboard: document.getElementById('nav-dashboard'),
+  customer: document.getElementById('nav-customer'),
+  entry: document.getElementById('nav-entry'),
+  invoice: document.getElementById('nav-invoice')
+};
+
+function showView(name){
+  Object.values(views).forEach(v => { v.classList.remove('active'); v.style.display='none'; v.setAttribute('aria-hidden','true'); });
+  const next = views[name];
+  if(next){ next.style.display='block'; void next.offsetHeight; next.classList.add('active'); next.setAttribute('aria-hidden','false'); }
+  Object.values(navEls).forEach(n => n.classList.remove('active'));
+  if(navEls[name]) navEls[name].classList.add('active');
+  try{ window.scrollTo({top:0,left:0,behavior:'instant'}) } catch(e){ window.scrollTo(0,0) }
+  if(name === 'dashboard') fetchAndRender();
+}
+
+navEls.dashboard.addEventListener('click', ()=> showView('dashboard'));
+navEls.customer.addEventListener('click', ()=> showView('customer'));
+navEls.entry.addEventListener('click', ()=> showView('entry'));
+navEls.invoice.addEventListener('click', ()=> showView('invoice'));
+
+/* ---------- fetch & render ---------- */
+let customerRowsCache = [];
+
+function fetchAndRender(){
+  fetch(FEED_URL).then(r => r.text()).then(txt => {
+    const json = parseGoogleJSON(txt);
+    const rows = json.table.rows || [];
+    customerRowsCache = rows.slice();
+    renderDashboard(rows);
+    renderCustomer(rows);
+  }).catch(err=>{
+    console.error("Sheet fetch error:", err);
+  });
+}
+fetchAndRender();
+
+function badge(status){
+  if(!status) return '';
+  const s = status.toString().toLowerCase();
+  if(s.includes('pending')) return `<span class="status-badge status-pending">Pending</span>`;
+  if(s.includes('paid')) return `<span class="status-badge status-paid">Paid</span>`;
+  if(s.includes('active')) return `<span class="status-badge status-active">Active</span>`;
+  return escapeHtml(status);
+}
+
+function renderDashboard(rows){
+  const tbody = document.querySelector("#entriesTableDashboard tbody");
+  tbody.innerHTML = "";
+  let totalEarning = 0, totalProfit = 0;
+  const productProfit = {};
+
+  rows.forEach(r => {
+    const c = r.c || [];
+    const dt = parseDT(c[0]);            // Timestamp column
+    const product = c[2]?.v || "";      // PRODUCT NAME
+    const buy = Number(c[3]?.v || 0);   // BUY price
+    const sell = Number(c[4]?.v || 0);  // SELL price
+    const status = c[5]?.v || "";       // STATUS
+    const profit = Number(c[6]?.v ?? (sell - buy));
+
+    totalEarning += sell;
+    totalProfit += profit;
+    productProfit[product] = (productProfit[product] || 0) + profit;
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(product)}</td>
+      <td>${badge(status)}</td>
+      <td class="col-profit">${formatINR(profit)}</td>
+      <td class="col-date">${escapeHtml(dt.date)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+
+  document.getElementById('totalEarning').innerText = formatINR(totalEarning);
+  document.getElementById('totalOrders').innerText = rows.length;
+  document.getElementById('totalProfitTop').innerText = formatINR(totalProfit);
+  document.getElementById('countEntries').innerText = rows.length;
+  document.getElementById('totalProfit').innerText = formatINR(totalProfit);
+
+  renderChart(productProfit);
+}
+
+function renderCustomer(rows){
+  const tbody = document.querySelector("#customerTable tbody");
+  tbody.innerHTML = "";
+  rows.forEach(r => {
+    const c = r.c || [];
+    const dt = parseDT(c[0]);            // Timestamp
+    const customer = c[1]?.v || "";      // NAME OF CUSTOMER
+    const product = c[2]?.v || "";       // PRODUCT NAME
+    const price = Number(c[4]?.v || 0);  // PRODUCT SELL PRICE
+
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(customer)}</td>
+      <td>${escapeHtml(product)}</td>
+      <td class="col-profit">${formatINR(price)}</td>
+      <td class="col-date">${escapeHtml(dt.date)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+/* chart */
+function renderChart(obj){
+  const ctx = document.getElementById("profitChart").getContext("2d");
+  if(window._chart) window._chart.destroy();
+  window._chart = new Chart(ctx,{
+    type:'bar',
+    data:{
+      labels:Object.keys(obj),
+      datasets:[{ label:'Profit', data:Object.values(obj), backgroundColor:'rgba(16,163,127,0.55)' }]
+    },
+    options:{ plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true } } }
+  });
+}
+
+/* ---------- search ---------- */
+const searchInput = document.getElementById('customerSearch');
+const clearBtn = document.getElementById('clearSearch');
+let searchTimer = null;
+if(searchInput){
+  searchInput.addEventListener('input', (e) => {
+    if(searchTimer) clearTimeout(searchTimer);
+    searchTimer = setTimeout(() => {
+      const q = (e.target.value || "").trim().toLowerCase();
+      filterCustomerRows(q);
+    }, 160);
+  });
+}
+if(clearBtn){
+  clearBtn.addEventListener('click', () => {
+    if(searchInput) searchInput.value = "";
+    filterCustomerRows("");
+  });
+}
+
+function filterCustomerRows(query){
+  const tbody = document.querySelector("#customerTable tbody");
+  tbody.innerHTML = "";
+  const rowsToShow = query ? customerRowsCache.filter(r => {
+    const name = (r.c?.[1]?.v || "").toString().toLowerCase();
+    return name.includes(query);
+  }) : customerRowsCache;
+  rowsToShow.forEach(r => {
+    const c = r.c || [];
+    const dt = parseDT(c[0]);
+    const customer = c[1]?.v || "";
+    const product = c[2]?.v || "";
+    const price = Number(c[4]?.v || 0);
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${escapeHtml(customer)}</td>
+      <td>${escapeHtml(product)}</td>
+      <td class="col-profit">${formatINR(price)}</td>
+      <td class="col-date">${escapeHtml(dt.date)}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+/* keyboard nav - 1..4 */
+document.addEventListener('keydown', (e)=>{
+  if(e.key === '1') showView('dashboard');
+  if(e.key === '2') showView('customer');
+  if(e.key === '3') showView('entry');
+  if(e.key === '4') showView('invoice');
+});
+
+/* initial */
+Object.values(views).forEach(v => { if(v && v.id !== 'view-dashboard') v.style.display='none'; });
+showView('dashboard');
+</script>
+</body>
+</html>
