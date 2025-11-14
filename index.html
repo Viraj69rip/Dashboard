@@ -84,11 +84,13 @@
     tbody tr:hover td{ background: rgba(255,255,255,0.28); transform: translateX(2px); }
 
     /* column widths and spacing */
-    thead th:nth-child(1), tbody td:nth-child(1){ width:38%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    thead th:nth-child(2), tbody td:nth-child(2){ width:32%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    thead th:nth-child(3), tbody td:nth-child(3){ width:12%; text-align:right; padding-right:22px; }
-    thead th:nth-child(4), tbody td:nth-child(4){ width:18%; text-align:left; padding-left:18px; color:#4b5563; }
+    thead th:nth-child(1), tbody td:nth-child(1){ width:6%; text-align:center }
+    thead th:nth-child(2), tbody td:nth-child(2){ width:38%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    thead th:nth-child(3), tbody td:nth-child(3){ width:32%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    thead th:nth-child(4), tbody td:nth-child(4){ width:12%; text-align:right; padding-right:22px; }
+    thead th:nth-child(5), tbody td:nth-child(5){ width:18%; text-align:left; padding-left:18px; color:#4b5563; }
 
+    .col-number{ font-weight:700; color:#374151; }
     .col-profit{ text-align:right; padding-right:22px; font-weight:600 }
     .col-date{ font-size:13px; color:#374151; white-space:nowrap }
 
@@ -103,6 +105,13 @@
     /* search */
     .search-row{display:flex;gap:10px;align-items:center;margin-bottom:12px}
     .search-input{flex:1;padding:12px 14px;border-radius:12px;border:1px solid rgba(0,0,0,0.04);background:rgba(255,255,255,0.28);}
+
+    /* button for row */
+    .row-link{
+      display:inline-block;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,0.12);border:1px solid rgba(0,0,0,0.04);
+      font-weight:700;color:#0a2540;text-decoration:none;cursor:pointer;
+    }
+    .row-link:hover{background:rgba(255,255,255,0.22);transform:translateY(-2px)}
 
     /* iframe area */
     .iframe-container{position:relative;width:100%;min-height:640px;overflow:auto;border-radius:12px;border:1px solid var(--card-border);background:var(--glass-2);padding:12px}
@@ -123,8 +132,8 @@
 
     @media(max-width:1100px){
       .right{width:320px}
-      thead th:nth-child(1){width:40%}
-      thead th:nth-child(2){width:30%}
+      thead th:nth-child(2){width:40%}
+      thead th:nth-child(3){width:30%}
     }
     @media(max-width:900px){
       .layout{flex-direction:column}
@@ -135,8 +144,8 @@
       .right{width:100%}
       .iframe-inner{height:1200px}
       .iframe-container{min-height:460px}
-      thead th:nth-child(1){width:50%}
-      thead th:nth-child(2){width:30%}
+      thead th:nth-child(2){width:50%}
+      thead th:nth-child(3){width:30%}
     }
 
   </style>
@@ -169,6 +178,7 @@
               <table id="entriesTableDashboard" aria-describedby="Active Listing">
                 <thead>
                   <tr>
+                    <th>No.</th>
                     <th>Sub. Name</th>
                     <th>Status</th>
                     <th style="text-align:right">Profit</th>
@@ -207,7 +217,7 @@
           <div style="overflow:auto">
             <table id="customerTable" aria-describedby="Customer Data">
               <thead>
-                <tr><th>Customer</th><th>Product</th><th style="text-align:right">Price</th><th>Date</th></tr>
+                <tr><th>No.</th><th>Customer</th><th>Product</th><th style="text-align:right">Price</th><th>Date</th></tr>
               </thead>
               <tbody></tbody>
             </table>
@@ -232,7 +242,7 @@
         <div class="panel">
           <h3>Invoice Generator</h3>
           <div class="iframe-container">
-            <iframe class="iframe-inner"
+            <iframe id="invoiceIframe" class="iframe-inner"
               src="https://viraj69rip.github.io/Invoice-From-Void-PC-Games/"
               title="Invoice Generator - Void PC Games"></iframe>
           </div>
@@ -255,7 +265,6 @@ function parseGoogleJSON(txt){ const s=txt.indexOf("{"), e=txt.lastIndexOf("}");
 /* Robust date parser -> outputs dd/mm/yy and time */
 function parseDT(cell){
   if(!cell) return {date:"", time:""};
-  // 1) If formatted string present (cell.f)
   if(typeof cell.f === 'string'){
     const f = cell.f.trim();
     let m = f.match(/(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})(?:\s+(\d{1,2}:\d{2}(?::\d{2})?))?/);
@@ -274,7 +283,6 @@ function parseDT(cell){
       }
     }
   }
-  // 2) cell.v common cases
   if(typeof cell.v === 'string'){
     const s = cell.v.trim();
     const iso = s.match(/^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2}):(\d{2})/);
@@ -288,7 +296,6 @@ function parseDT(cell){
       return { date: `${d}/${mo}/${yy}`, time: (m2[4]||"") };
     }
   }
-  // fallback
   return { date:"", time:"" };
 }
 
@@ -322,13 +329,13 @@ navEls.entry.addEventListener('click', ()=> showView('entry'));
 navEls.invoice.addEventListener('click', ()=> showView('invoice'));
 
 /* ---------- fetch & render ---------- */
-let customerRowsCache = [];
+let customerRowsCache = []; // will hold original array from sheet
 
 function fetchAndRender(){
   fetch(FEED_URL).then(r => r.text()).then(txt => {
     const json = parseGoogleJSON(txt);
     const rows = json.table.rows || [];
-    customerRowsCache = rows.slice();
+    customerRowsCache = rows.slice(); // keep original index mapping
     renderDashboard(rows);
     renderCustomer(rows);
   }).catch(err=>{
@@ -352,7 +359,7 @@ function renderDashboard(rows){
   let totalEarning = 0, totalProfit = 0;
   const productProfit = {};
 
-  rows.forEach(r => {
+  rows.forEach((r, idx) => {
     const c = r.c || [];
     const dt = parseDT(c[0]);            // Timestamp column
     const product = c[2]?.v || "";      // PRODUCT NAME
@@ -365,8 +372,11 @@ function renderDashboard(rows){
     totalProfit += profit;
     productProfit[product] = (productProfit[product] || 0) + profit;
 
+    const sheetRow = idx + 2; // map to Google sheet row (first data row is row 2)
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
+      <td class="col-number"><a class="row-link" data-row="${sheetRow}">${sheetRow}</a></td>
       <td>${escapeHtml(product)}</td>
       <td>${badge(status)}</td>
       <td class="col-profit">${formatINR(profit)}</td>
@@ -379,23 +389,29 @@ function renderDashboard(rows){
   document.getElementById('totalOrders').innerText = rows.length;
   document.getElementById('totalProfitTop').innerText = formatINR(totalProfit);
   document.getElementById('countEntries').innerText = rows.length;
-  document.getElementById('totalProfit').innerText = formatINR(totalProfit);
+  // optional extra display id 'totalProfit' may not exist; protect
+  const totalProfitEl = document.getElementById('totalProfit');
+  if(totalProfitEl) totalProfitEl.innerText = formatINR(totalProfit);
 
   renderChart(productProfit);
+  wireRowLinks(); // attach click handlers for newly created links
 }
 
 function renderCustomer(rows){
   const tbody = document.querySelector("#customerTable tbody");
   tbody.innerHTML = "";
-  rows.forEach(r => {
+  rows.forEach((r, idx) => {
     const c = r.c || [];
     const dt = parseDT(c[0]);            // Timestamp
     const customer = c[1]?.v || "";      // NAME OF CUSTOMER
     const product = c[2]?.v || "";       // PRODUCT NAME
     const price = Number(c[4]?.v || 0);  // PRODUCT SELL PRICE
 
+    const sheetRow = idx + 2; // map to Google sheet row number
+
     const tr = document.createElement('tr');
     tr.innerHTML = `
+      <td class="col-number"><a class="row-link" data-row="${sheetRow}">${sheetRow}</a></td>
       <td>${escapeHtml(customer)}</td>
       <td>${escapeHtml(product)}</td>
       <td class="col-profit">${formatINR(price)}</td>
@@ -403,6 +419,7 @@ function renderCustomer(rows){
     `;
     tbody.appendChild(tr);
   });
+  wireRowLinks();
 }
 
 /* chart */
@@ -442,18 +459,24 @@ if(clearBtn){
 function filterCustomerRows(query){
   const tbody = document.querySelector("#customerTable tbody");
   tbody.innerHTML = "";
-  const rowsToShow = query ? customerRowsCache.filter(r => {
+  const rowsToShow = [];
+  for(let i=0;i<customerRowsCache.length;i++){
+    const r = customerRowsCache[i];
     const name = (r.c?.[1]?.v || "").toString().toLowerCase();
-    return name.includes(query);
-  }) : customerRowsCache;
-  rowsToShow.forEach(r => {
+    if(!query || name.includes(query)) rowsToShow.push({r, idx:i});
+  }
+  rowsToShow.forEach(item => {
+    const r = item.r;
+    const idx = item.idx;
     const c = r.c || [];
     const dt = parseDT(c[0]);
     const customer = c[1]?.v || "";
     const product = c[2]?.v || "";
     const price = Number(c[4]?.v || 0);
+    const sheetRow = idx + 2;
     const tr = document.createElement('tr');
     tr.innerHTML = `
+      <td class="col-number"><a class="row-link" data-row="${sheetRow}">${sheetRow}</a></td>
       <td>${escapeHtml(customer)}</td>
       <td>${escapeHtml(product)}</td>
       <td class="col-profit">${formatINR(price)}</td>
@@ -461,6 +484,37 @@ function filterCustomerRows(query){
     `;
     tbody.appendChild(tr);
   });
+  wireRowLinks();
+}
+
+/* ---------- row link wiring (open invoice) ---------- */
+function wireRowLinks(){
+  // attach click to all .row-link elements
+  document.querySelectorAll('.row-link').forEach(el=>{
+    el.removeEventListener('click', onRowClick);
+    el.addEventListener('click', onRowClick);
+  });
+}
+
+function onRowClick(ev){
+  const row = ev.currentTarget.getAttribute('data-row');
+  if(!row) return;
+  openInvoiceForRow(Number(row));
+}
+
+/* open invoice in iframe and show invoice view; also open new tab as convenience */
+function openInvoiceForRow(rowNumber){
+  const baseUrl = "https://viraj69rip.github.io/Invoice-From-Void-PC-Games/";
+  const urlWithRow = baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'row=' + encodeURIComponent(rowNumber);
+  // set iframe src (so embedded generator sees row param if it reads query)
+  const iframe = document.getElementById('invoiceIframe');
+  if(iframe){
+    iframe.src = urlWithRow;
+  }
+  // switch to invoice view
+  showView('invoice');
+  // also open in new tab so user can print/share immediately
+  window.open(urlWithRow, '_blank');
 }
 
 /* keyboard nav - 1..4 */
