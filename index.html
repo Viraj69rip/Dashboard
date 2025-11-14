@@ -159,6 +159,7 @@
         <a id="nav-customer">Customer Data</a>
         <a id="nav-entry">Entry Form</a>
         <a id="nav-invoice">Invoice Generator</a>
+        <a id="nav-sheet">Sheet View</a>
       </nav>
     </aside>
 
@@ -248,6 +249,25 @@
           </div>
         </div>
       </section>
+
+      <!-- Sheet View (embedded published Sheet) -->
+      <section id="view-sheet" class="view" aria-hidden="true">
+        <div class="panel">
+          <h3>Sheet View (embedded)</h3>
+
+          <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
+            <button id="openSheetBtn" style="padding:8px 12px;border-radius:8px;border:1px solid rgba(0,0,0,0.05);background:var(--glass-2)">Open Sheet in new tab</button>
+            <span class="small" style="color:#475569">Published view is embedded below.</span>
+          </div>
+
+          <div class="iframe-container" style="min-height:560px">
+            <iframe id="sheetIframe" class="iframe-inner"
+              src=""
+              title="Google Sheet - embedded"></iframe>
+          </div>
+        </div>
+      </section>
+
     </main>
   </div>
 
@@ -255,6 +275,8 @@
 /* ---------- config ---------- */
 const SHEET_ID = "1Eat5aTUzw6Ck2fZG-Vf_d1g9WAMFTlNcZd0yLiotUJw";
 const SHEET_NAME = "Form responses 1";
+// Published URL you gave (used for sheet embed)
+const PUBLISHED_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTP0XFeoA6vDt9mdjZyoXnUDBw3Whx5epnX0zvhvSdGDwnvQ7jBm-vEtHlzDA1q1nGCVxYVsanny9Ik/pubhtml?gid=2126430015&single=true";
 const FEED_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
 
 /* ---------- helpers ---------- */
@@ -304,13 +326,15 @@ const views = {
   dashboard: document.getElementById('view-dashboard'),
   customer: document.getElementById('view-customer'),
   entry: document.getElementById('view-entry'),
-  invoice: document.getElementById('view-invoice')
+  invoice: document.getElementById('view-invoice'),
+  sheet: document.getElementById('view-sheet')
 };
 const navEls = {
   dashboard: document.getElementById('nav-dashboard'),
   customer: document.getElementById('nav-customer'),
   entry: document.getElementById('nav-entry'),
-  invoice: document.getElementById('nav-invoice')
+  invoice: document.getElementById('nav-invoice'),
+  sheet: document.getElementById('nav-sheet')
 };
 
 function showView(name){
@@ -321,12 +345,14 @@ function showView(name){
   if(navEls[name]) navEls[name].classList.add('active');
   try{ window.scrollTo({top:0,left:0,behavior:'instant'}) } catch(e){ window.scrollTo(0,0) }
   if(name === 'dashboard') fetchAndRender();
+  if(name === 'sheet') loadSheetEmbed(); // lazy load sheet iframe
 }
 
 navEls.dashboard.addEventListener('click', ()=> showView('dashboard'));
 navEls.customer.addEventListener('click', ()=> showView('customer'));
 navEls.entry.addEventListener('click', ()=> showView('entry'));
 navEls.invoice.addEventListener('click', ()=> showView('invoice'));
+navEls.sheet.addEventListener('click', ()=> showView('sheet'));
 
 /* ---------- fetch & render ---------- */
 let customerRowsCache = []; // will hold original array from sheet
@@ -389,7 +415,6 @@ function renderDashboard(rows){
   document.getElementById('totalOrders').innerText = rows.length;
   document.getElementById('totalProfitTop').innerText = formatINR(totalProfit);
   document.getElementById('countEntries').innerText = rows.length;
-  // optional extra display id 'totalProfit' may not exist; protect
   const totalProfitEl = document.getElementById('totalProfit');
   if(totalProfitEl) totalProfitEl.innerText = formatINR(totalProfit);
 
@@ -517,12 +542,29 @@ function openInvoiceForRow(rowNumber){
   window.open(urlWithRow, '_blank');
 }
 
-/* keyboard nav - 1..4 */
+/* ---------- Sheet embed handling ---------- */
+const sheetIframe = document.getElementById('sheetIframe');
+const openSheetBtn = document.getElementById('openSheetBtn');
+
+function loadSheetEmbed(){
+  if(!sheetIframe) return;
+  // Use the published URL you provided
+  sheetIframe.src = PUBLISHED_SHEET_URL;
+}
+if(openSheetBtn){
+  openSheetBtn.addEventListener('click', ()=> {
+    // open the published page or the edit view in new tab
+    window.open(PUBLISHED_SHEET_URL, '_blank');
+  });
+}
+
+/* keyboard nav - 1..5 (5 = sheet) */
 document.addEventListener('keydown', (e)=>{
   if(e.key === '1') showView('dashboard');
   if(e.key === '2') showView('customer');
   if(e.key === '3') showView('entry');
   if(e.key === '4') showView('invoice');
+  if(e.key === '5') showView('sheet');
 });
 
 /* initial */
