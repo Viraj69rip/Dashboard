@@ -5,6 +5,11 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Void Store Dashboard</title>
 
+  <!-- FAVICON / APP ICONS -->
+  <link rel="icon" href="https://i.ibb.co/sJqfn3w5/1761541971985.png" type="image/png">
+  <link rel="apple-touch-icon" sizes="180x180" href="https://i.ibb.co/sJqfn3w5/1761541971985.png">
+  <meta name="msapplication-TileImage" content="https://i.ibb.co/sJqfn3w5/1761541971985.png">
+
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
@@ -30,7 +35,8 @@
       background:var(--glass-2);backdrop-filter:blur(10px);flex-shrink:0;
       box-shadow: 0 6px 20px rgba(12,24,40,0.03);
     }
-    .logo{font-weight:800;color:var(--accent);margin-bottom:20px;font-size:18px}
+    .logo{display:flex;align-items:center;gap:10px;font-weight:800;color:var(--accent);margin-bottom:20px;font-size:18px}
+    .logo img{height:36px;width:36px;border-radius:8px;object-fit:cover;box-shadow:0 4px 12px rgba(0,0,0,0.08)}
     .nav a{
       display:block;padding:10px 8px;border-radius:10px;text-decoration:none;margin-bottom:8px;color:#223;font-weight:600;
       transition:all .22s ease;
@@ -153,7 +159,10 @@
 <body>
   <div class="layout">
     <aside class="sidebar">
-      <div class="logo">Void Store</div>
+      <div class="logo">
+        <img src="https://i.ibb.co/sJqfn3w5/1761541971985.png" alt="Void Logo">
+        <span>Void Store</span>
+      </div>
       <nav class="nav" aria-label="main nav">
         <a id="nav-dashboard" class="active">Dashboard</a>
         <a id="nav-customer">Customer Data</a>
