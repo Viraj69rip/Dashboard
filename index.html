@@ -376,14 +376,56 @@ navEls.entry.addEventListener('click', ()=> showView('entry'));
 navEls.invoice.addEventListener('click', ()=> showView('invoice'));
 navEls.sheet.addEventListener('click', ()=> showView('sheet'));
 
-/* ---------- fetch & render ---------- */
+/* ---------- fetch & render (robust header lookup) ---------- */
 let customerRowsCache = []; // will hold original array from sheet
+let headerIndex = {};       // header label (upper) => index in r.c[]
 
+/**
+ * Build headerIndex map from gviz JSON table.cols
+ */
+function buildHeaderMap(json){
+  headerIndex = {};
+  if(!json || !json.table || !Array.isArray(json.table.cols)) return;
+  json.table.cols.forEach((col, i) => {
+    const label = (col.label || '').toString().trim().toUpperCase();
+    if(label) headerIndex[label] = i;
+  });
+}
+
+/**
+ * getCell - safe cell getter by header name
+ * row: json.table.rows[n]
+ * hdr: header name e.g. "PLATFORM FEES" or "PRODUCT SELL PRICE"
+ * options:
+ *   { asNumber: boolean } -> when true returns Number(cell.v || 0)
+ */
+function getCell(row, hdr, options = {}){
+  if(!row) return options.asNumber ? 0 : '';
+  const idx = headerIndex[hdr.toUpperCase()];
+  if(idx === undefined) {
+    return options.asNumber ? 0 : '';
+  }
+  const cell = row.c?.[idx];
+  if(!cell) return options.asNumber ? 0 : '';
+  if(options.asNumber){
+    // coerce to number safely
+    const v = Number(cell.v ?? 0);
+    return isNaN(v) ? 0 : v;
+  }
+  return cell.v ?? (cell.f ?? '');
+}
+
+/* new fetch + render */
 function fetchAndRender(){
   fetch(FEED_URL).then(r => r.text()).then(txt => {
     const json = parseGoogleJSON(txt);
+    // build header map once per pull
+    buildHeaderMap(json);
+
     const rows = json.table.rows || [];
     customerRowsCache = rows.slice(); // keep original index mapping
+
+    // call updated render functions that use getCell(...)
     renderDashboard(rows);
     renderCustomer(rows);
   }).catch(err=>{
@@ -426,7 +468,7 @@ function animateValue(element, start, end, duration = 800, formatter = (n)=>Stri
   requestAnimationFrame(step);
 }
 
-/* ---------- renderDashboard (UPDATED to read Platform Fees & Profits correctly) ---------- */
+/* ---------- renderDashboard (using header map) ---------- */
 function renderDashboard(rows){
   const tbody = document.querySelector("#entriesTableDashboard tbody");
   tbody.innerHTML = "";
@@ -434,15 +476,17 @@ function renderDashboard(rows){
   const productProfit = {};
 
   rows.forEach((r, idx) => {
-    const c = r.c || [];
-    const dt = parseDT(c[0]);                         // Timestamp column
-    const product = c[2]?.v || "";                   // PRODUCT NAME
-    const buy = Number(c[3]?.v || 0);                // BUY price
-    const sell = Number(c[4]?.v || 0);               // SELL price
-    const platformFees = Number(c[5]?.v || 0);       // Platform Fees (new column)
-    const status = c[6]?.v || "";                    // PAYMENT STATUS
-    // profit: prefer explicit PROFITS column if present, otherwise compute (sell - buy - platformFees)
-    const profit = Number(c[7]?.v ?? (sell - buy - platformFees));
+    const dtCell = r.c?.[ headerIndex['TIMESTAMP'] ];
+    const dt = parseDT(dtCell);
+    const product = String(getCell(r, 'PRODUCT NAME') || getCell(r, 'PRODUCT') || '').toString();
+    const buy = Number(getCell(r, 'PRODUCT BUY PRICE', {asNumber:true}) || 0);
+    const sell = Number(getCell(r, 'PRODUCT SELL PRICE', {asNumber:true}) || 0);
+    const platformFees = Number(getCell(r, 'PLATFORM FEES', {asNumber:true}) || 0);
+    const status = String(getCell(r, 'PAYMENT STATUS') || getCell(r, 'STATUS') || '');
+
+    // profit: prefer explicit PROFITS column if present and non-zero, otherwise compute (sell - buy - platformFees)
+    const explicitProfit = Number(getCell(r, 'PROFITS', {asNumber:true}));
+    const profit = (!isNaN(explicitProfit) && explicitProfit !== 0) ? explicitProfit : (sell - buy - platformFees || 0);
 
     totalEarning += sell;
     totalProfit += profit;
@@ -462,12 +506,11 @@ function renderDashboard(rows){
     tbody.appendChild(tr);
   });
 
-  // Instead of setting the text directly, animate the top cards
+  // animate top cards
   const totalEarningEl = document.getElementById('totalEarning');
   const totalOrdersEl = document.getElementById('totalOrders');
   const totalProfitTopEl = document.getElementById('totalProfitTop');
 
-  // Start animation from zero to target
   animateValue(totalEarningEl, 0, totalEarning, 900, (n)=>formatINR(n));
   animateValue(totalOrdersEl, 0, rows.length, 700, (n)=>String(n));
   animateValue(totalProfitTopEl, 0, totalProfit, 900, (n)=>formatINR(n));
@@ -480,18 +523,18 @@ function renderDashboard(rows){
   wireRowLinks(); // attach click handlers for newly created links
 }
 
-/* ---------- renderCustomer (UPDATED to include Platform Fees & Profit) ---------- */
+/* ---------- renderCustomer (using header map) ---------- */
 function renderCustomer(rows){
   const tbody = document.querySelector("#customerTable tbody");
   tbody.innerHTML = "";
   rows.forEach((r, idx) => {
-    const c = r.c || [];
-    const dt = parseDT(c[0]);            // Timestamp
-    const customer = c[1]?.v || "";      // NAME OF CUSTOMER
-    const product = c[2]?.v || "";       // PRODUCT NAME
-    const price = Number(c[4]?.v || 0);  // PRODUCT SELL PRICE
-    const platformFees = Number(c[5]?.v || 0); // Platform Fees
-    const profit = Number(c[7]?.v ?? (price - Number(c[3]?.v||0) - platformFees)); // prefer sheet profit if exists
+    const dt = parseDT(r.c?.[ headerIndex['TIMESTAMP'] ]);
+    const customer = String(getCell(r, 'NAME OF CUSTOMER') || getCell(r, 'NAME') || '');
+    const product = String(getCell(r, 'PRODUCT NAME') || getCell(r, 'PRODUCT') || '');
+    const price = Number(getCell(r, 'PRODUCT SELL PRICE', {asNumber:true}) || 0);
+    const platformFees = Number(getCell(r, 'PLATFORM FEES', {asNumber:true}) || 0);
+    const explicitProfit = Number(getCell(r, 'PROFITS', {asNumber:true}));
+    const profit = (!isNaN(explicitProfit) && explicitProfit !== 0) ? explicitProfit : (price - Number(getCell(r,'PRODUCT BUY PRICE',{asNumber:true})||0) - platformFees);
 
     const sheetRow = idx + 2; // map to Google sheet row number
 
@@ -556,13 +599,13 @@ function filterCustomerRows(query){
   rowsToShow.forEach(item => {
     const r = item.r;
     const idx = item.idx;
-    const c = r.c || [];
-    const dt = parseDT(c[0]);
-    const customer = c[1]?.v || "";
-    const product = c[2]?.v || "";
-    const price = Number(c[4]?.v || 0);
-    const platformFees = Number(c[5]?.v || 0);
-    const profit = Number(c[7]?.v ?? (price - Number(c[3]?.v||0) - platformFees));
+    const dt = parseDT(r.c?.[ headerIndex['TIMESTAMP'] ]);
+    const customer = String(getCell(r, 'NAME OF CUSTOMER') || getCell(r, 'NAME') || '');
+    const product = String(getCell(r, 'PRODUCT NAME') || getCell(r, 'PRODUCT') || '');
+    const price = Number(getCell(r, 'PRODUCT SELL PRICE', {asNumber:true}) || 0);
+    const platformFees = Number(getCell(r, 'PLATFORM FEES', {asNumber:true}) || 0);
+    const explicitProfit = Number(getCell(r, 'PROFITS', {asNumber:true}));
+    const profit = (!isNaN(explicitProfit) && explicitProfit !== 0) ? explicitProfit : (price - Number(getCell(r,'PRODUCT BUY PRICE',{asNumber:true})||0) - platformFees);
     const sheetRow = idx + 2;
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -616,7 +659,7 @@ const openSheetBtn = document.getElementById('openSheetBtn');
 function loadSheetEmbed(){
   if(!sheetIframe) return;
   // Use the published URL you provided
-  sheetIframe.src = PUBLISHED_SHEET_URL;
+  sheetIframe.src = PUBLISHED_SHEET_URL;  
 }
 if(openSheetBtn){
   openSheetBtn.addEventListener('click', ()=> {
