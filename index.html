@@ -89,12 +89,13 @@
     }
     tbody tr:hover td{ background: rgba(255,255,255,0.28); transform: translateX(2px); }
 
-    /* column widths and spacing */
+    /* column widths and spacing -- UPDATED for 6 columns (No., Customer, Product, Price, Profit, Date) */
     thead th:nth-child(1), tbody td:nth-child(1){ width:6%; text-align:center }
-    thead th:nth-child(2), tbody td:nth-child(2){ width:38%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    thead th:nth-child(3), tbody td:nth-child(3){ width:32%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    thead th:nth-child(2), tbody td:nth-child(2){ width:34%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    thead th:nth-child(3), tbody td:nth-child(3){ width:28%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     thead th:nth-child(4), tbody td:nth-child(4){ width:12%; text-align:right; padding-right:22px; }
-    thead th:nth-child(5), tbody td:nth-child(5){ width:18%; text-align:left; padding-left:18px; color:#4b5563; }
+    thead th:nth-child(5), tbody td:nth-child(5){ width:10%; text-align:right; padding-right:16px; font-weight:600; color:#374151; }
+    thead th:nth-child(6), tbody td:nth-child(6){ width:10%; text-align:left; padding-left:18px; color:#4b5563; white-space:nowrap; }
 
     .col-number{ font-weight:700; color:#374151; }
     .col-profit{ text-align:right; padding-right:22px; font-weight:600 }
@@ -227,7 +228,14 @@
           <div style="overflow:auto">
             <table id="customerTable" aria-describedby="Customer Data">
               <thead>
-                <tr><th>No.</th><th>Customer</th><th>Product</th><th style="text-align:right">Price</th><th>Date</th></tr>
+                <tr>
+                  <th>No.</th>
+                  <th>Customer</th>
+                  <th>Product</th>
+                  <th style="text-align:right">Price</th>
+                  <th style="text-align:right">Profit</th>
+                  <th>Date</th>
+                </tr>
               </thead>
               <tbody></tbody>
             </table>
@@ -439,7 +447,10 @@ function renderCustomer(rows){
     const dt = parseDT(c[0]);            // Timestamp
     const customer = c[1]?.v || "";      // NAME OF CUSTOMER
     const product = c[2]?.v || "";       // PRODUCT NAME
+    const buy = Number(c[3]?.v || 0);    // PRODUCT BUY PRICE
     const price = Number(c[4]?.v || 0);  // PRODUCT SELL PRICE
+    // profit may be stored in column 6 (index 6). Fallback: compute sell - buy
+    const profit = Number(c[6]?.v ?? (price - buy));
 
     const sheetRow = idx + 2; // map to Google sheet row number
 
@@ -449,6 +460,7 @@ function renderCustomer(rows){
       <td>${escapeHtml(customer)}</td>
       <td>${escapeHtml(product)}</td>
       <td class="col-profit">${formatINR(price)}</td>
+      <td class="col-profit">${formatINR(profit)}</td>
       <td class="col-date">${escapeHtml(dt.date)}</td>
     `;
     tbody.appendChild(tr);
@@ -506,7 +518,9 @@ function filterCustomerRows(query){
     const dt = parseDT(c[0]);
     const customer = c[1]?.v || "";
     const product = c[2]?.v || "";
+    const buy = Number(c[3]?.v || 0);
     const price = Number(c[4]?.v || 0);
+    const profit = Number(c[6]?.v ?? (price - buy));
     const sheetRow = idx + 2;
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -514,6 +528,7 @@ function filterCustomerRows(query){
       <td>${escapeHtml(customer)}</td>
       <td>${escapeHtml(product)}</td>
       <td class="col-profit">${formatINR(price)}</td>
+      <td class="col-profit">${formatINR(profit)}</td>
       <td class="col-date">${escapeHtml(dt.date)}</td>
     `;
     tbody.appendChild(tr);
