@@ -101,6 +101,16 @@
     .iframe-container{position:relative;width:100%;min-height:420px;overflow:hidden;border-radius:12px;border:1px solid var(--card-border);background:var(--glass-2);padding:12px}
     .iframe-inner{width:100%;height:640px;border:0;display:block}
 
+    /* overlay (shown while iframe loading or blocked) */
+    .sheet-overlay{
+      position:absolute;inset:0;display:flex;align-items:center;justify-content:center;padding:18px;
+      background:linear-gradient(180deg, rgba(255,255,255,0.9), rgba(255,255,255,0.85));
+      border-radius:12px;z-index:40;text-align:center;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.2);
+    }
+    .sheet-overlay p{margin:0 0 12px;color:#274155}
+    .sheet-overlay .btn{display:inline-block;padding:10px 14px;border-radius:10px;background:#fff;border:1px solid rgba(0,0,0,0.06);box-shadow:0 6px 20px rgba(0,0,0,0.04);cursor:pointer}
+
     /* responsive / mobile */
     .top, .content{transition:all .18s ease}
     @media(max-width:1000px){
@@ -191,8 +201,8 @@
           <aside class="right">
             <div class="panel">
               <h3>Top sellers (top 4 + Other)</h3>
-              <div class="chart-wrap" style="height:270px">
-                <canvas id="topSellersChart"></canvas>
+              <div style="position:relative">
+                <canvas id="topSellersPie" style="height:220px;width:100%"></canvas>
               </div>
             </div>
 
@@ -262,8 +272,19 @@
             <span class="small" style="color:#475569">Published view is embedded below.</span>
           </div>
 
-          <div class="iframe-container" style="min-height:560px">
-            <iframe id="sheetIframe" class="iframe-inner" src="" title="Google Sheet - embedded" allowfullscreen sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
+          <div class="iframe-container" id="sheetFrameWrap" style="min-height:560px;position:relative">
+            <iframe id="sheetIframe" class="iframe-inner" src="" title="Google Sheet - embedded" allowfullscreen></iframe>
+
+            <!-- overlay: visible until iframe 'load' fires (or if blocked) -->
+            <div id="sheetOverlay" class="sheet-overlay" aria-hidden="false" style="display:flex;flex-direction:column;gap:10px;align-items:center;justify-content:center">
+              <p><strong>If the sheet does not appear below:</strong><br>
+                 • Make sure you used **File → Publish to the web…** for the specific sheet (not just "share").<br>
+                 • If embedding is blocked by browser/privacy extension, open in a new tab.</p>
+              <div style="display:flex;gap:8px;align-items:center">
+                <button class="btn" id="overlayOpenBtn">Open published sheet in new tab</button>
+                <button class="btn" id="overlayHideBtn">Hide this message</button>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -293,19 +314,20 @@
 
 <script>
 /* ---------- config ---------- */
-const SHEET_ID = "1Eat5aTUzw6Ck2fZG-Vf_d1g9WAMFTlNcZd0yLiotUJw";
-const SHEET_NAME = "Form responses 1";
-// use widget=true so published sheet is embeddable in many contexts
+/*
+  NOTE: this is the published sheet URL (pubhtml). If you haven't published the sheet,
+  open your sheet -> File -> Publish to the web -> pick the sheet tab -> Publish,
+  then copy the "Link" Google provides (pubhtml). The link below is the one used
+  in previous messages; if you published a different sheet tab replace this string.
+*/
 const PUBLISHED_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTP0XFeoA6vDt9mdjZyoXnUDBw3Whx5epnX0zvhvSdGDwnvQ7jBm-vEtHlzDA1q1nGCVxYVsanny9Ik/pubhtml?gid=2126430015&single=true";
-const PUBLISHED_SHEET_URL_WIDGET = PUBLISHED_SHEET_URL + "&widget=true";
-const FEED_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+// add widget params for cleaner embed
+const PUBLISHED_SHEET_EMBED = PUBLISHED_SHEET_URL + "&widget=true&chrome=false";
 
-/* helpers */
+/* ---- helpers (unchanged) ---- */
 function escapeHtml(s){ return (s||"").toString().replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function formatINR(n){ return "₹ "+Number(n||0).toLocaleString("en-IN",{minimumFractionDigits:2}); }
 function parseGoogleJSON(txt){ const s=txt.indexOf("{"), e=txt.lastIndexOf("}"); return JSON.parse(txt.slice(s,e+1)); }
-
-/* date parsing robust */
 function parseDT(cell){
   if(!cell) return {date:"", time:""};
   if(typeof cell.f === 'string'){
@@ -342,7 +364,7 @@ function parseDT(cell){
   return { date:"", time:"" };
 }
 
-/* view & nav */
+/* ---------- view & nav ---------- */
 const views = {
   dashboard: document.getElementById('view-dashboard'),
   customer: document.getElementById('view-customer'),
@@ -419,16 +441,25 @@ function getCell(row, hdr, options = {}){
   return cell.v ?? (cell.f ?? '');
 }
 
-/* fetch */
+/* ---------- FETCH - uses gviz JSON endpoint ---------- */
+const SHEET_ID = "1Eat5aTUzw6Ck2fZG-Vf_d1g9WAMFTlNcZd0yLiotUJw";
+const SHEET_NAME = "Form responses 1";
+const FEED_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+
 function fetchAndRender(){
   fetch(FEED_URL).then(r => r.text()).then(txt => {
-    const json = parseGoogleJSON(txt);
-    buildHeaderMap(json);
-    const rows = json.table.rows || [];
-    customerRowsCache = rows.slice();
-    renderDashboard(rows);
-    renderCustomer(rows);
-    renderAnalyticsFromCache(); // update analytics if open
+    try {
+      const json = parseGoogleJSON(txt);
+      buildHeaderMap(json);
+      const rows = json.table.rows || [];
+      customerRowsCache = rows.slice();
+      renderDashboard(rows);
+      renderCustomer(rows);
+      renderAnalyticsFromCache();
+      renderTopSellersPie(rows);
+    } catch(e){
+      console.error("Failed to parse sheet JSON:", e);
+    }
   }).catch(err=>{
     console.error("Sheet fetch error:", err);
   });
@@ -464,14 +495,12 @@ function animateValue(element, start, end, duration = 800, formatter = (n)=>Stri
 }
 
 /* ---------- renderDashboard ---------- */
-let _topSellersChart = null;
-
+let _profitChart = null;
 function renderDashboard(rows){
   const tbody = document.querySelector("#entriesTableDashboard tbody");
   tbody.innerHTML = "";
   let totalEarning = 0, totalProfit = 0;
   const productProfit = {};
-  const productCounts = {}; // for top-sellers donut
 
   rows.forEach((r, idx) => {
     const dtCell = r.c?.[ headerIndex['TIMESTAMP'] ];
@@ -488,10 +517,6 @@ function renderDashboard(rows){
     totalEarning += sell;
     totalProfit += profit;
     productProfit[product] = (productProfit[product] || 0) + profit;
-
-    // counting sales per product
-    const key = product || '(Unknown)';
-    productCounts[key] = (productCounts[key] || 0) + 1;
 
     const sheetRow = idx + 2;
     const tr = document.createElement('tr');
@@ -519,8 +544,8 @@ function renderDashboard(rows){
   const totalProfitEl = document.getElementById('totalProfit');
   if(totalProfitEl) totalProfitEl.innerText = formatINR(totalProfit);
 
-  // render donut with top 4 sellers + Other (by count)
-  renderTopSellersDonut(productCounts);
+  // we intentionally call top-sellers pie separately
+  renderProfitByProductChart(productProfit);
   wireRowLinks();
 }
 
@@ -553,52 +578,79 @@ function renderCustomer(rows){
   wireRowLinks();
 }
 
-/* ---------- top sellers donut ---------- */
-/*
-  Input: productCounts = { productName: count, ... }
-  Show top 4 products by count individually; sum rest into "Other".
-*/
-function renderTopSellersDonut(productCounts){
-  const ctx = document.getElementById("topSellersChart").getContext("2d");
-  // compute sorted top products
-  const entries = Object.entries(productCounts).filter(e => e[1] && e[0]).sort((a,b)=>b[1]-a[1]);
-  const top = entries.slice(0,4);
-  const rest = entries.slice(4);
-  const restSum = rest.reduce((s,[,c])=>s+c,0);
+/* ---------- profit by product chart (bar) ---------- */
+function renderProfitByProductChart(obj){
+  const ctx = document.getElementById("profitChart");
+  // profitChart might not exist in this layout (we replaced with pie). keep defensive:
+  if(!ctx) return;
+  const ctx2 = ctx.getContext("2d");
+  if(_profitChart) _profitChart.destroy();
+  _profitChart = new Chart(ctx2,{
+    type:'bar',
+    data:{
+      labels:Object.keys(obj),
+      datasets:[{ label:'Profit', data:Object.values(obj).map(v=>Number(v.toFixed? v : v)), backgroundColor:'rgba(75,192,150,0.8)' }]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{ legend:{ display:false } },
+      scales:{ y:{ beginAtZero:true } }
+    }
+  });
+}
 
+/* ---------- Top sellers pie (top 4 + other) ---------- */
+let topSellersChart = null;
+function renderTopSellersPie(rows){
+  // aggregate by product (use count of sales as "size" — or sum of revenue if you prefer)
+  const byProduct = {};
+  rows.forEach(r=>{
+    const name = String(getCell(r, 'PRODUCT NAME') || getCell(r, 'PRODUCT') || 'Unknown');
+    const price = Number(getCell(r, 'PRODUCT SELL PRICE', {asNumber:true}) || 0);
+    // we'll use revenue sum so bigger revenue = bigger slice
+    byProduct[name] = (byProduct[name] || 0) + price;
+  });
+
+  // build sorted list by value
+  const entries = Object.entries(byProduct).sort((a,b)=>b[1]-a[1]);
+  const top = entries.slice(0,4);
+  const others = entries.slice(4);
   const labels = top.map(e=>e[0]);
   const data = top.map(e=>e[1]);
-  if(restSum > 0){ labels.push('Other'); data.push(restSum); }
+  const othersSum = others.reduce((s,e)=>s+e[1],0);
+  if(othersSum > 0){
+    labels.push('Other');
+    data.push(othersSum);
+  }
 
-  // pick some pastel palette
-  const palette = [
-    'rgba(54,162,235,0.85)',
-    'rgba(75,192,192,0.85)',
-    'rgba(255,205,86,0.85)',
-    'rgba(153,102,255,0.85)',
-    'rgba(201,203,207,0.85)'
+  // colors
+  const colors = [
+    'rgba(75,192,192,0.9)',
+    'rgba(54,162,235,0.9)',
+    'rgba(255,205,86,0.9)',
+    'rgba(153,102,255,0.9)',
+    'rgba(201,203,207,0.9)'
   ];
 
-  if(_topSellersChart) _topSellersChart.destroy();
-  _topSellersChart = new Chart(ctx, {
+  const ctx = document.getElementById('topSellersPie').getContext('2d');
+  if(topSellersChart) topSellersChart.destroy();
+  topSellersChart = new Chart(ctx, {
     type: 'doughnut',
     data: {
       labels,
       datasets: [{
         data,
-        backgroundColor: palette.slice(0, labels.length),
+        backgroundColor: colors.slice(0, labels.length),
         borderWidth: 0
       }]
     },
     options: {
       responsive:true,
       maintainAspectRatio:false,
-      cutout: '60%',
-      plugins:{
-        legend: {
-          position:'right',
-          labels: { boxWidth:12, padding:12 }
-        }
+      cutout: '65%',
+      plugins: {
+        legend: { position:'right' }
       }
     }
   });
@@ -630,7 +682,6 @@ function filterCustomerRows(query){
   const rowsToShow = [];
   for(let i=0;i<customerRowsCache.length;i++){
     const r = customerRowsCache[i];
-    // check common name columns safely
     const maybeName = (getCell(r,'NAME') || getCell(r,'NAME OF CUSTOMER') || r.c?.[1]?.v || "").toString().toLowerCase();
     if(!query || maybeName.includes(query)) rowsToShow.push({r, idx:i});
   }
@@ -686,27 +737,59 @@ function openInvoiceForRow(rowNumber){
   window.open(urlWithRow, '_blank');
 }
 
-/* ---------- Sheet embed ---------- */
+/* ---------- Sheet embed logic + overlay fallback ---------- */
 const sheetIframe = document.getElementById('sheetIframe');
 const openSheetBtn = document.getElementById('openSheetBtn');
+const sheetOverlay = document.getElementById('sheetOverlay');
+const overlayOpenBtn = document.getElementById('overlayOpenBtn');
+const overlayHideBtn = document.getElementById('overlayHideBtn');
+
 function loadSheetEmbed(){
   if(!sheetIframe) return;
-  // prefer widget=true embed (improves embed behavior in some contexts)
-  if(!sheetIframe.src) sheetIframe.src = PUBLISHED_SHEET_URL_WIDGET;
-}
-if(openSheetBtn){
-  openSheetBtn.addEventListener('click', ()=> {
-    window.open(PUBLISHED_SHEET_URL_WIDGET, '_blank');
-  });
+  // set src only once (lazy)
+  if(!sheetIframe.dataset.srcset){
+    sheetIframe.src = PUBLISHED_SHEET_EMBED;
+    sheetIframe.dataset.srcset = "1";
+  }
+  // show overlay until iframe loads or user hides
+  sheetOverlay.style.display = 'flex';
+  sheetOverlay.setAttribute('aria-hidden','false');
+
+  // install a one-time load handler to hide overlay if iframe loads successfully
+  function onLoadOnce(){
+    // loaded: hide overlay
+    sheetOverlay.style.display = 'none';
+    sheetOverlay.setAttribute('aria-hidden','true');
+    sheetIframe.removeEventListener('load', onLoadOnce);
+  }
+  // attach load
+  sheetIframe.addEventListener('load', onLoadOnce);
+
+  // fallback: after 3.5s, if still showing overlay, keep it (user can open in new tab)
+  setTimeout(()=> {
+    if(sheetOverlay.style.display !== 'none'){
+      // keep overlay visible — user can open sheet in new tab via button
+      // (we do not auto-hide; overlay offers actions)
+    }
+  }, 3500);
 }
 
-// also try to preload it once (helps avoid a blank iframe on first open)
-document.addEventListener('DOMContentLoaded', ()=>{
-  // small delay to avoid blocking load, but preload early
-  setTimeout(()=> {
-    try { if(sheetIframe && !sheetIframe.src) sheetIframe.src = PUBLISHED_SHEET_URL_WIDGET; } catch(e) {}
-  }, 800);
-});
+if(openSheetBtn){
+  openSheetBtn.addEventListener('click', ()=> {
+    window.open(PUBLISHED_SHEET_EMBED, '_blank');
+  });
+}
+if(overlayOpenBtn){
+  overlayOpenBtn.addEventListener('click', ()=> {
+    window.open(PUBLISHED_SHEET_EMBED, '_blank');
+  });
+}
+if(overlayHideBtn){
+  overlayHideBtn.addEventListener('click', ()=> {
+    sheetOverlay.style.display = 'none';
+    sheetOverlay.setAttribute('aria-hidden','true');
+  });
+}
 
 /* ---------- Analytics rendering ---------- */
 let analyticsChart = null;
@@ -714,8 +797,7 @@ function renderAnalyticsFromCache(){
   const rows = customerRowsCache || [];
   if(!rows) return;
 
-  // group by date
-  const byDate = {}; // date -> { revenue, sales, profit }
+  const byDate = {};
   let totalRevenue = 0, totalProfit = 0, totalSales = 0;
   rows.forEach(r=>{
     const dt = parseDT(r.c?.[ headerIndex['TIMESTAMP'] ]);
@@ -736,7 +818,6 @@ function renderAnalyticsFromCache(){
     byDate[date].profit += profit;
   });
 
-  // sort dates (try to sort using dd/mm/yy -> yyyy-mm-dd)
   const dateKeys = Object.keys(byDate).sort((a,b)=>{
     function toIso(d){
       if(!d || d === 'Unknown') return '9999-99-99';
@@ -748,18 +829,15 @@ function renderAnalyticsFromCache(){
     return toIso(a) > toIso(b) ? 1 : -1;
   });
 
-  // build arrays
   const labels = dateKeys;
   const revenueData = labels.map(d => Number((byDate[d].revenue||0).toFixed(2)));
   const salesData = labels.map(d => byDate[d].sales||0);
 
-  // update analytics cards
   document.getElementById('analyticsTotalRevenue').textContent = formatINR(totalRevenue);
   document.getElementById('analyticsTotalSales').textContent = String(totalSales);
   document.getElementById('analyticsAOV').textContent = totalSales ? formatINR(totalRevenue/totalSales) : formatINR(0);
   document.getElementById('analyticsTotalProfit').textContent = formatINR(totalProfit);
 
-  // chart with two datasets (revenue = left axis, sales = right axis)
   const ctx = document.getElementById('analyticsChart').getContext('2d');
   if(analyticsChart) analyticsChart.destroy();
   analyticsChart = new Chart(ctx, {
@@ -824,6 +902,8 @@ document.addEventListener('keydown', (e)=>{
   if(e.key === '4') showView('invoice');
   if(e.key === '5') showView('sheet');
 });
+
+/* ---------- top sellers pie will be initially rendered once fetch completes ---------- */
 
 /* ---------- initial UI setup ---------- */
 function initialUI(){
