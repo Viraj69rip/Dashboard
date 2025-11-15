@@ -172,7 +172,7 @@
           <div class="left">
             <div class="panel">
               <h3>Active Listing</h3>
-              <table id="entriesTableDashboard" aria-describedBy="Active Listing">
+              <table id="entriesTableDashboard" aria-describedby="Active Listing">
                 <thead>
                   <tr>
                     <th>No.</th>
@@ -190,8 +190,10 @@
 
           <aside class="right">
             <div class="panel">
-              <h3>Profit by Product</h3>
-              <div class="chart-wrap"><canvas id="profitChart"></canvas></div>
+              <h3>Top sellers (top 4 + Other)</h3>
+              <div class="chart-wrap" style="height:270px">
+                <canvas id="topSellersChart"></canvas>
+              </div>
             </div>
 
             <div class="panel">
@@ -261,11 +263,7 @@
           </div>
 
           <div class="iframe-container" style="min-height:560px">
-            <iframe id="sheetIframe" class="iframe-inner" src="" title="Google Sheet - embedded" allowfullscreen></iframe>
-            <!-- fallback message shown when embedding likely blocked -->
-            <p id="sheetFallback" style="display:none;margin-top:10px;color:#6b7280">
-              If the sheet does not appear inside this page (Google may restrict embedding), please use the "Open Sheet in new tab" button above.
-            </p>
+            <iframe id="sheetIframe" class="iframe-inner" src="" title="Google Sheet - embedded" allowfullscreen sandbox="allow-scripts allow-same-origin allow-forms"></iframe>
           </div>
         </div>
       </section>
@@ -297,10 +295,9 @@
 /* ---------- config ---------- */
 const SHEET_ID = "1Eat5aTUzw6Ck2fZG-Vf_d1g9WAMFTlNcZd0yLiotUJw";
 const SHEET_NAME = "Form responses 1";
-/* Slightly adjusted embed-friendly variation: widget=true & headers=false */
-const PUBLISHED_SHEET_URL_BASE = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTP0XFeoA6vDt9mdjZyoXnUDBw3Whx5epnX0zvhvSdGDwnvQ7jBm-vEtHlzDA1q1nGCVxYVsanny9Ik/pubhtml";
-const PUBLISHED_SHEET_EMBED = PUBLISHED_SHEET_URL_BASE + "?gid=2126430015&single=true&widget=true&headers=false";
-const PUBLISHED_SHEET_FALLBACK = PUBLISHED_SHEET_URL_BASE + "?gid=2126430015&single=true"; // original fallback
+// use widget=true so published sheet is embeddable in many contexts
+const PUBLISHED_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTP0XFeoA6vDt9mdjZyoXnUDBw3Whx5epnX0zvhvSdGDwnvQ7jBm-vEtHlzDA1q1nGCVxYVsanny9Ik/pubhtml?gid=2126430015&single=true";
+const PUBLISHED_SHEET_URL_WIDGET = PUBLISHED_SHEET_URL + "&widget=true";
 const FEED_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
 
 /* helpers */
@@ -467,13 +464,14 @@ function animateValue(element, start, end, duration = 800, formatter = (n)=>Stri
 }
 
 /* ---------- renderDashboard ---------- */
-let _profitChart = null;
+let _topSellersChart = null;
 
 function renderDashboard(rows){
   const tbody = document.querySelector("#entriesTableDashboard tbody");
   tbody.innerHTML = "";
   let totalEarning = 0, totalProfit = 0;
   const productProfit = {};
+  const productCounts = {}; // for top-sellers donut
 
   rows.forEach((r, idx) => {
     const dtCell = r.c?.[ headerIndex['TIMESTAMP'] ];
@@ -490,6 +488,10 @@ function renderDashboard(rows){
     totalEarning += sell;
     totalProfit += profit;
     productProfit[product] = (productProfit[product] || 0) + profit;
+
+    // counting sales per product
+    const key = product || '(Unknown)';
+    productCounts[key] = (productCounts[key] || 0) + 1;
 
     const sheetRow = idx + 2;
     const tr = document.createElement('tr');
@@ -517,7 +519,8 @@ function renderDashboard(rows){
   const totalProfitEl = document.getElementById('totalProfit');
   if(totalProfitEl) totalProfitEl.innerText = formatINR(totalProfit);
 
-  renderProfitByProductChart(productProfit);
+  // render donut with top 4 sellers + Other (by count)
+  renderTopSellersDonut(productCounts);
   wireRowLinks();
 }
 
@@ -550,21 +553,53 @@ function renderCustomer(rows){
   wireRowLinks();
 }
 
-/* ---------- profit by product chart (bar) ---------- */
-function renderProfitByProductChart(obj){
-  const ctx = document.getElementById("profitChart").getContext("2d");
-  if(_profitChart) _profitChart.destroy();
-  _profitChart = new Chart(ctx,{
-    type:'bar',
-    data:{
-      labels:Object.keys(obj),
-      datasets:[{ label:'Profit', data:Object.values(obj).map(v=>Number(v.toFixed? v : v)), backgroundColor:'rgba(75,192,150,0.8)' }]
+/* ---------- top sellers donut ---------- */
+/*
+  Input: productCounts = { productName: count, ... }
+  Show top 4 products by count individually; sum rest into "Other".
+*/
+function renderTopSellersDonut(productCounts){
+  const ctx = document.getElementById("topSellersChart").getContext("2d");
+  // compute sorted top products
+  const entries = Object.entries(productCounts).filter(e => e[1] && e[0]).sort((a,b)=>b[1]-a[1]);
+  const top = entries.slice(0,4);
+  const rest = entries.slice(4);
+  const restSum = rest.reduce((s,[,c])=>s+c,0);
+
+  const labels = top.map(e=>e[0]);
+  const data = top.map(e=>e[1]);
+  if(restSum > 0){ labels.push('Other'); data.push(restSum); }
+
+  // pick some pastel palette
+  const palette = [
+    'rgba(54,162,235,0.85)',
+    'rgba(75,192,192,0.85)',
+    'rgba(255,205,86,0.85)',
+    'rgba(153,102,255,0.85)',
+    'rgba(201,203,207,0.85)'
+  ];
+
+  if(_topSellersChart) _topSellersChart.destroy();
+  _topSellersChart = new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels,
+      datasets: [{
+        data,
+        backgroundColor: palette.slice(0, labels.length),
+        borderWidth: 0
+      }]
     },
-    options:{
+    options: {
       responsive:true,
       maintainAspectRatio:false,
-      plugins:{ legend:{ display:false } },
-      scales:{ y:{ beginAtZero:true } }
+      cutout: '60%',
+      plugins:{
+        legend: {
+          position:'right',
+          labels: { boxWidth:12, padding:12 }
+        }
+      }
     }
   });
 }
@@ -651,64 +686,27 @@ function openInvoiceForRow(rowNumber){
   window.open(urlWithRow, '_blank');
 }
 
-/* ---------- Sheet embed (IMPROVED) ---------- */
+/* ---------- Sheet embed ---------- */
 const sheetIframe = document.getElementById('sheetIframe');
 const openSheetBtn = document.getElementById('openSheetBtn');
 function loadSheetEmbed(){
   if(!sheetIframe) return;
-
-  // Hide fallback initially
-  const fallbackEl = document.getElementById('sheetFallback');
-  if(fallbackEl) fallbackEl.style.display = 'none';
-
-  // If already set, do nothing
-  if(sheetIframe.dataset.loaded === 'true') return;
-
-  // Try more embed-friendly variant first (widget + headers false)
-  let triedEmbed = false;
-  let onLoadCalled = false;
-  const embedUrl = PUBLISHED_SHEET_EMBED;
-  const fallbackUrl = PUBLISHED_SHEET_FALLBACK;
-
-  // set a short timeout to show fallback if onload doesn't fire (embedding blocked)
-  const failTimer = setTimeout(() => {
-    if(!onLoadCalled){
-      // show fallback message but keep iframe src (user can still try)
-      if(fallbackEl) fallbackEl.style.display = 'block';
-      // ensure iframe has at least the fallback URL so "Open in new tab" works
-      if(!sheetIframe.src) sheetIframe.src = fallbackUrl;
-    }
-  }, 1800); // 1.8s
-
-  sheetIframe.onload = function(){
-    onLoadCalled = true;
-    clearTimeout(failTimer);
-    sheetIframe.dataset.loaded = 'true';
-    // hide fallback if it was shown
-    if(fallbackEl) fallbackEl.style.display = 'none';
-    // good embed — keep it
-  };
-
-  // try embed URL first
-  try {
-    sheetIframe.src = embedUrl;
-    triedEmbed = true;
-  } catch(e){
-    // fallback
-    sheetIframe.src = fallbackUrl;
-  }
-
-  // final guard: if embedding blocked or browser blocks iframe, ensure fallback button remains helpful
-  if(openSheetBtn){
-    openSheetBtn.onclick = () => { window.open(fallbackUrl, '_blank'); };
-  }
+  // prefer widget=true embed (improves embed behavior in some contexts)
+  if(!sheetIframe.src) sheetIframe.src = PUBLISHED_SHEET_URL_WIDGET;
 }
 if(openSheetBtn){
   openSheetBtn.addEventListener('click', ()=> {
-    // always open fallback link in new tab (published sheet)
-    window.open(PUBLISHED_SHEET_FALLBACK, '_blank');
+    window.open(PUBLISHED_SHEET_URL_WIDGET, '_blank');
   });
 }
+
+// also try to preload it once (helps avoid a blank iframe on first open)
+document.addEventListener('DOMContentLoaded', ()=>{
+  // small delay to avoid blocking load, but preload early
+  setTimeout(()=> {
+    try { if(sheetIframe && !sheetIframe.src) sheetIframe.src = PUBLISHED_SHEET_URL_WIDGET; } catch(e) {}
+  }, 800);
+});
 
 /* ---------- Analytics rendering ---------- */
 let analyticsChart = null;
