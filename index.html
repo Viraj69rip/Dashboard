@@ -402,6 +402,30 @@ function badge(status){
   return escapeHtml(status);
 }
 
+/* ---------- number animation helper ---------- */
+/**
+ * animateValue - animate numbers using requestAnimationFrame
+ * element: DOM element to update
+ * start: numeric start value
+ * end: numeric end value
+ * duration: ms
+ * formatter: function(number) -> string (how to format value for display)
+ */
+function animateValue(element, start, end, duration = 800, formatter = (n)=>String(n)) {
+  const startTime = performance.now();
+  const isInt = Number.isInteger(start) && Number.isInteger(end);
+  function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); } // nicer easing
+  function step(now) {
+    const elapsed = now - startTime;
+    const progress = Math.min(1, elapsed / duration);
+    const eased = easeOutCubic(progress);
+    const current = start + (end - start) * eased;
+    element.textContent = formatter(isInt ? Math.round(current) : current);
+    if(progress < 1) requestAnimationFrame(step);
+  }
+  requestAnimationFrame(step);
+}
+
 /* ---------- renderDashboard (UPDATED to read Platform Fees & Profits correctly) ---------- */
 function renderDashboard(rows){
   const tbody = document.querySelector("#entriesTableDashboard tbody");
@@ -438,9 +462,16 @@ function renderDashboard(rows){
     tbody.appendChild(tr);
   });
 
-  document.getElementById('totalEarning').innerText = formatINR(totalEarning);
-  document.getElementById('totalOrders').innerText = rows.length;
-  document.getElementById('totalProfitTop').innerText = formatINR(totalProfit);
+  // Instead of setting the text directly, animate the top cards
+  const totalEarningEl = document.getElementById('totalEarning');
+  const totalOrdersEl = document.getElementById('totalOrders');
+  const totalProfitTopEl = document.getElementById('totalProfitTop');
+
+  // Start animation from zero to target
+  animateValue(totalEarningEl, 0, totalEarning, 900, (n)=>formatINR(n));
+  animateValue(totalOrdersEl, 0, rows.length, 700, (n)=>String(n));
+  animateValue(totalProfitTopEl, 0, totalProfit, 900, (n)=>formatINR(n));
+
   document.getElementById('countEntries').innerText = rows.length;
   const totalProfitEl = document.getElementById('totalProfit');
   if(totalProfitEl) totalProfitEl.innerText = formatINR(totalProfit);
