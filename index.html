@@ -89,17 +89,20 @@
     }
     tbody tr:hover td{ background: rgba(255,255,255,0.28); transform: translateX(2px); }
 
-    /* column widths and spacing -- UPDATED for 6 columns (No., Customer, Product, Price, Profit, Date) */
+    /* column widths and spacing */
     thead th:nth-child(1), tbody td:nth-child(1){ width:6%; text-align:center }
-    thead th:nth-child(2), tbody td:nth-child(2){ width:34%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    thead th:nth-child(3), tbody td:nth-child(3){ width:28%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
-    thead th:nth-child(4), tbody td:nth-child(4){ width:12%; text-align:right; padding-right:22px; }
-    thead th:nth-child(5), tbody td:nth-child(5){ width:10%; text-align:right; padding-right:16px; font-weight:600; color:#374151; }
-    thead th:nth-child(6), tbody td:nth-child(6){ width:10%; text-align:left; padding-left:18px; color:#4b5563; white-space:nowrap; }
+    thead th:nth-child(2), tbody td:nth-child(2){ width:38%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    thead th:nth-child(3), tbody td:nth-child(3){ width:18%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } /* status */
+    thead th:nth-child(4), tbody td:nth-child(4){ width:12%; text-align:right; padding-right:22px; } /* profit */
+    thead th:nth-child(5), tbody td:nth-child(5){ width:12%; text-align:right; padding-right:22px; } /* platform fees */
+    thead th:nth-child(6), tbody td:nth-child(6){ width:18%; text-align:right; padding-left:18px; color:#4b5563; } /* date */
 
     .col-number{ font-weight:700; color:#374151; }
     .col-profit{ text-align:right; padding-right:22px; font-weight:600 }
-    .col-date{ font-size:13px; color:#374151; white-space:nowrap }
+    .col-date{ font-size:13px; color:#374151; white-space:nowrap; text-align:right }
+
+    /* ensure headers + cells vertically centered */
+    thead th, tbody td { vertical-align: middle; }
 
     /* badges */
     .status-badge{padding:6px 12px;border-radius:12px;font-weight:700;font-size:13px;display:inline-block}
@@ -193,7 +196,8 @@
                     <th>Sub. Name</th>
                     <th>Status</th>
                     <th style="text-align:right">Profit</th>
-                    <th>Date</th>
+                    <th style="text-align:right">Platform Fees</th>
+                    <th class="col-date">Date</th>
                   </tr>
                 </thead>
                 <tbody></tbody>
@@ -233,8 +237,9 @@
                   <th>Customer</th>
                   <th>Product</th>
                   <th style="text-align:right">Price</th>
+                  <th style="text-align:right">Platform Fees</th>
                   <th style="text-align:right">Profit</th>
-                  <th>Date</th>
+                  <th class="col-date">Date</th>
                 </tr>
               </thead>
               <tbody></tbody>
@@ -387,6 +392,7 @@ function fetchAndRender(){
 }
 fetchAndRender();
 
+/* Badge helper */
 function badge(status){
   if(!status) return '';
   const s = status.toString().toLowerCase();
@@ -396,6 +402,7 @@ function badge(status){
   return escapeHtml(status);
 }
 
+/* ---------- renderDashboard (UPDATED to read Platform Fees & Profits correctly) ---------- */
 function renderDashboard(rows){
   const tbody = document.querySelector("#entriesTableDashboard tbody");
   tbody.innerHTML = "";
@@ -404,12 +411,14 @@ function renderDashboard(rows){
 
   rows.forEach((r, idx) => {
     const c = r.c || [];
-    const dt = parseDT(c[0]);            // Timestamp column
-    const product = c[2]?.v || "";      // PRODUCT NAME
-    const buy = Number(c[3]?.v || 0);   // BUY price
-    const sell = Number(c[4]?.v || 0);  // SELL price
-    const status = c[5]?.v || "";       // STATUS
-    const profit = Number(c[6]?.v ?? (sell - buy));
+    const dt = parseDT(c[0]);                         // Timestamp column
+    const product = c[2]?.v || "";                   // PRODUCT NAME
+    const buy = Number(c[3]?.v || 0);                // BUY price
+    const sell = Number(c[4]?.v || 0);               // SELL price
+    const platformFees = Number(c[5]?.v || 0);       // Platform Fees (new column)
+    const status = c[6]?.v || "";                    // PAYMENT STATUS
+    // profit: prefer explicit PROFITS column if present, otherwise compute (sell - buy - platformFees)
+    const profit = Number(c[7]?.v ?? (sell - buy - platformFees));
 
     totalEarning += sell;
     totalProfit += profit;
@@ -423,6 +432,7 @@ function renderDashboard(rows){
       <td>${escapeHtml(product)}</td>
       <td>${badge(status)}</td>
       <td class="col-profit">${formatINR(profit)}</td>
+      <td class="col-profit">${formatINR(platformFees)}</td>
       <td class="col-date">${escapeHtml(dt.date)}</td>
     `;
     tbody.appendChild(tr);
@@ -439,6 +449,7 @@ function renderDashboard(rows){
   wireRowLinks(); // attach click handlers for newly created links
 }
 
+/* ---------- renderCustomer (UPDATED to include Platform Fees & Profit) ---------- */
 function renderCustomer(rows){
   const tbody = document.querySelector("#customerTable tbody");
   tbody.innerHTML = "";
@@ -447,10 +458,9 @@ function renderCustomer(rows){
     const dt = parseDT(c[0]);            // Timestamp
     const customer = c[1]?.v || "";      // NAME OF CUSTOMER
     const product = c[2]?.v || "";       // PRODUCT NAME
-    const buy = Number(c[3]?.v || 0);    // PRODUCT BUY PRICE
     const price = Number(c[4]?.v || 0);  // PRODUCT SELL PRICE
-    // profit may be stored in column 6 (index 6). Fallback: compute sell - buy
-    const profit = Number(c[6]?.v ?? (price - buy));
+    const platformFees = Number(c[5]?.v || 0); // Platform Fees
+    const profit = Number(c[7]?.v ?? (price - Number(c[3]?.v||0) - platformFees)); // prefer sheet profit if exists
 
     const sheetRow = idx + 2; // map to Google sheet row number
 
@@ -460,6 +470,7 @@ function renderCustomer(rows){
       <td>${escapeHtml(customer)}</td>
       <td>${escapeHtml(product)}</td>
       <td class="col-profit">${formatINR(price)}</td>
+      <td class="col-profit">${formatINR(platformFees)}</td>
       <td class="col-profit">${formatINR(profit)}</td>
       <td class="col-date">${escapeHtml(dt.date)}</td>
     `;
@@ -518,9 +529,9 @@ function filterCustomerRows(query){
     const dt = parseDT(c[0]);
     const customer = c[1]?.v || "";
     const product = c[2]?.v || "";
-    const buy = Number(c[3]?.v || 0);
     const price = Number(c[4]?.v || 0);
-    const profit = Number(c[6]?.v ?? (price - buy));
+    const platformFees = Number(c[5]?.v || 0);
+    const profit = Number(c[7]?.v ?? (price - Number(c[3]?.v||0) - platformFees));
     const sheetRow = idx + 2;
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -528,6 +539,7 @@ function filterCustomerRows(query){
       <td>${escapeHtml(customer)}</td>
       <td>${escapeHtml(product)}</td>
       <td class="col-profit">${formatINR(price)}</td>
+      <td class="col-profit">${formatINR(platformFees)}</td>
       <td class="col-profit">${formatINR(profit)}</td>
       <td class="col-date">${escapeHtml(dt.date)}</td>
     `;
