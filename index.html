@@ -314,17 +314,10 @@
 
 <script>
 /* ---------- config ---------- */
-/*
-  NOTE: this is the published sheet URL (pubhtml). If you haven't published the sheet,
-  open your sheet -> File -> Publish to the web -> pick the sheet tab -> Publish,
-  then copy the "Link" Google provides (pubhtml). The link below is the one used
-  in previous messages; if you published a different sheet tab replace this string.
-*/
 const PUBLISHED_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTP0XFeoA6vDt9mdjZyoXnUDBw3Whx5epnX0zvhvSdGDwnvQ7jBm-vEtHlzDA1q1nGCVxYVsanny9Ik/pubhtml?gid=2126430015&single=true";
-// add widget params for cleaner embed
 const PUBLISHED_SHEET_EMBED = PUBLISHED_SHEET_URL + "&widget=true&chrome=false";
 
-/* ---- helpers (unchanged) ---- */
+/* helpers */
 function escapeHtml(s){ return (s||"").toString().replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function formatINR(n){ return "₹ "+Number(n||0).toLocaleString("en-IN",{minimumFractionDigits:2}); }
 function parseGoogleJSON(txt){ const s=txt.indexOf("{"), e=txt.lastIndexOf("}"); return JSON.parse(txt.slice(s,e+1)); }
@@ -364,7 +357,7 @@ function parseDT(cell){
   return { date:"", time:"" };
 }
 
-/* ---------- view & nav ---------- */
+/* view & nav */
 const views = {
   dashboard: document.getElementById('view-dashboard'),
   customer: document.getElementById('view-customer'),
@@ -401,11 +394,9 @@ function showView(name){
   }
   if(navEls[name]) navEls[name].classList.add('active');
 
-  // lazy actions
   if(name === 'dashboard') fetchAndRender();
   if(name === 'sheet') loadSheetEmbed();
-  if(name === 'analytics') { fetchAndRender(); renderAnalyticsFromCache(); } // reuse cache
-  // close mobile sidebar when selecting on small screens
+  if(name === 'analytics') { fetchAndRender(); renderAnalyticsFromCache(); }
   if(window.innerWidth < 900) document.getElementById('sidebar').classList.remove('open');
 }
 
@@ -413,9 +404,9 @@ Object.keys(navEls).forEach(k => {
   navEls[k].addEventListener('click', ()=> showView(k));
 });
 
-/* ---------- fetch & render (robust header lookup) ---------- */
-let customerRowsCache = []; // will hold original array from sheet
-let headerIndex = {};       // header label (upper) => index in r.c[]
+/* ---------- fetch & render (gviz json) ---------- */
+let customerRowsCache = [];
+let headerIndex = {};
 
 function buildHeaderMap(json){
   headerIndex = {};
@@ -429,9 +420,7 @@ function buildHeaderMap(json){
 function getCell(row, hdr, options = {}){
   if(!row) return options.asNumber ? 0 : '';
   const idx = headerIndex[hdr.toUpperCase()];
-  if(idx === undefined) {
-    return options.asNumber ? 0 : '';
-  }
+  if(idx === undefined) return options.asNumber ? 0 : '';
   const cell = row.c?.[idx];
   if(!cell) return options.asNumber ? 0 : '';
   if(options.asNumber){
@@ -441,7 +430,6 @@ function getCell(row, hdr, options = {}){
   return cell.v ?? (cell.f ?? '');
 }
 
-/* ---------- FETCH - uses gviz JSON endpoint ---------- */
 const SHEET_ID = "1Eat5aTUzw6Ck2fZG-Vf_d1g9WAMFTlNcZd0yLiotUJw";
 const SHEET_NAME = "Form responses 1";
 const FEED_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
@@ -464,11 +452,9 @@ function fetchAndRender(){
     console.error("Sheet fetch error:", err);
   });
 }
-
-/* initial fetch */
 fetchAndRender();
 
-/* ---------- badges ---------- */
+/* badges */
 function badge(status){
   if(!status) return '';
   const s = status.toString().toLowerCase();
@@ -478,7 +464,7 @@ function badge(status){
   return escapeHtml(status);
 }
 
-/* ---------- animate numbers ---------- */
+/* animate numbers */
 function animateValue(element, start, end, duration = 800, formatter = (n)=>String(n)) {
   const startTime = performance.now();
   const isInt = Number.isInteger(start) && Number.isInteger(end);
@@ -494,7 +480,7 @@ function animateValue(element, start, end, duration = 800, formatter = (n)=>Stri
   requestAnimationFrame(step);
 }
 
-/* ---------- renderDashboard ---------- */
+/* render dashboard */
 let _profitChart = null;
 function renderDashboard(rows){
   const tbody = document.querySelector("#entriesTableDashboard tbody");
@@ -531,7 +517,6 @@ function renderDashboard(rows){
     tbody.appendChild(tr);
   });
 
-  // animate top cards
   const totalEarningEl = document.getElementById('totalEarning');
   const totalOrdersEl = document.getElementById('totalOrders');
   const totalProfitTopEl = document.getElementById('totalProfitTop');
@@ -544,12 +529,11 @@ function renderDashboard(rows){
   const totalProfitEl = document.getElementById('totalProfit');
   if(totalProfitEl) totalProfitEl.innerText = formatINR(totalProfit);
 
-  // we intentionally call top-sellers pie separately
   renderProfitByProductChart(productProfit);
   wireRowLinks();
 }
 
-/* ---------- renderCustomer ---------- */
+/* render customer */
 function renderCustomer(rows){
   const tbody = document.querySelector("#customerTable tbody");
   tbody.innerHTML = "";
@@ -578,53 +562,63 @@ function renderCustomer(rows){
   wireRowLinks();
 }
 
-/* ---------- profit by product chart (bar) ---------- */
+/* profit by product chart (bar) - defensive (may be unused) */
 function renderProfitByProductChart(obj){
-  const ctx = document.getElementById("profitChart");
-  // profitChart might not exist in this layout (we replaced with pie). keep defensive:
-  if(!ctx) return;
-  const ctx2 = ctx.getContext("2d");
+  const ctxEl = document.getElementById("profitChart");
+  if(!ctxEl) return;
+  const ctx = ctxEl.getContext("2d");
   if(_profitChart) _profitChart.destroy();
-  _profitChart = new Chart(ctx2,{
+  _profitChart = new Chart(ctx,{
     type:'bar',
     data:{
       labels:Object.keys(obj),
       datasets:[{ label:'Profit', data:Object.values(obj).map(v=>Number(v.toFixed? v : v)), backgroundColor:'rgba(75,192,150,0.8)' }]
     },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      plugins:{ legend:{ display:false } },
-      scales:{ y:{ beginAtZero:true } }
-    }
+    options:{responsive:true,maintainAspectRatio:false,plugins:{ legend:{ display:false } },scales:{ y:{ beginAtZero:true } }}
   });
 }
 
-/* ---------- Top sellers pie (top 4 + other) ---------- */
+/* -------------- NEW: Top sellers pie by COUNT + normalization -------------- */
 let topSellersChart = null;
+
+function normalizeProductName(raw){
+  if(!raw) return 'Unknown';
+  let s = String(raw).trim();
+  s = s.replace(/\s+/g,' ').toLowerCase();
+
+  // common normalizations / aliases (extend as needed)
+  if(s.includes('xbox')) return 'Xbox Game Pass Ultimate';
+  if(s.includes('amazon') && s.includes('prime')) return 'Amazon Prime Video';
+  if(s.includes('spider') || s.includes('spiderman')) return s.includes('2') ? 'Spider-man 2' : 'Spiderman';
+  if(s.includes('gta')) return 'GTA V';
+  if(s.includes('netflix')) return 'Netflix';
+  // fall back to Title Case cleaned string
+  return s.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
+}
+
 function renderTopSellersPie(rows){
-  // aggregate by product (use count of sales as "size" — or sum of revenue if you prefer)
-  const byProduct = {};
+  // count sales per normalized product name (use count, not revenue)
+  const counts = {};
   rows.forEach(r=>{
-    const name = String(getCell(r, 'PRODUCT NAME') || getCell(r, 'PRODUCT') || 'Unknown');
-    const price = Number(getCell(r, 'PRODUCT SELL PRICE', {asNumber:true}) || 0);
-    // we'll use revenue sum so bigger revenue = bigger slice
-    byProduct[name] = (byProduct[name] || 0) + price;
+    const raw = getCell(r, 'PRODUCT NAME') || getCell(r, 'PRODUCT') || '';
+    const name = normalizeProductName(raw);
+    counts[name] = (counts[name] || 0) + 1;
   });
 
-  // build sorted list by value
-  const entries = Object.entries(byProduct).sort((a,b)=>b[1]-a[1]);
+  // convert to array and sort by count desc
+  const entries = Object.entries(counts).sort((a,b)=>b[1]-a[1]);
+
   const top = entries.slice(0,4);
   const others = entries.slice(4);
-  const labels = top.map(e=>e[0]);
-  const data = top.map(e=>e[1]);
+  const labels = top.map(e => e[0]);
+  const data = top.map(e => e[1]);
   const othersSum = others.reduce((s,e)=>s+e[1],0);
   if(othersSum > 0){
     labels.push('Other');
     data.push(othersSum);
   }
 
-  // colors
+  // colors (extend if needed)
   const colors = [
     'rgba(75,192,192,0.9)',
     'rgba(54,162,235,0.9)',
@@ -633,30 +627,26 @@ function renderTopSellersPie(rows){
     'rgba(201,203,207,0.9)'
   ];
 
-  const ctx = document.getElementById('topSellersPie').getContext('2d');
+  const canvas = document.getElementById('topSellersPie');
+  if(!canvas) return;
+  const ctx = canvas.getContext('2d');
   if(topSellersChart) topSellersChart.destroy();
   topSellersChart = new Chart(ctx, {
     type: 'doughnut',
     data: {
       labels,
-      datasets: [{
-        data,
-        backgroundColor: colors.slice(0, labels.length),
-        borderWidth: 0
-      }]
+      datasets: [{ data, backgroundColor: colors.slice(0, labels.length), borderWidth: 0 }]
     },
     options: {
-      responsive:true,
-      maintainAspectRatio:false,
+      responsive: true,
+      maintainAspectRatio: false,
       cutout: '65%',
-      plugins: {
-        legend: { position:'right' }
-      }
+      plugins: { legend: { position: 'right' } }
     }
   });
 }
 
-/* ---------- search ---------- */
+/* search */
 const searchInput = document.getElementById('customerSearch');
 const clearBtn = document.getElementById('clearSearch');
 let searchTimer = null;
@@ -711,33 +701,28 @@ function filterCustomerRows(query){
   wireRowLinks();
 }
 
-/* ---------- row link wiring ---------- */
+/* row link */
 function wireRowLinks(){
   document.querySelectorAll('.row-link').forEach(el=>{
     el.removeEventListener('click', onRowClick);
     el.addEventListener('click', onRowClick);
   });
 }
-
 function onRowClick(ev){
   const row = ev.currentTarget.getAttribute('data-row');
   if(!row) return;
   openInvoiceForRow(Number(row));
 }
-
-/* open invoice */
 function openInvoiceForRow(rowNumber){
   const baseUrl = "https://viraj69rip.github.io/Invoice-From-Void-PC-Games/";
   const urlWithRow = baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'row=' + encodeURIComponent(rowNumber);
   const iframe = document.getElementById('invoiceIframe');
-  if(iframe){
-    iframe.src = urlWithRow;
-  }
+  if(iframe) iframe.src = urlWithRow;
   showView('invoice');
   window.open(urlWithRow, '_blank');
 }
 
-/* ---------- Sheet embed logic + overlay fallback ---------- */
+/* sheet embed + overlay */
 const sheetIframe = document.getElementById('sheetIframe');
 const openSheetBtn = document.getElementById('openSheetBtn');
 const sheetOverlay = document.getElementById('sheetOverlay');
@@ -746,30 +731,23 @@ const overlayHideBtn = document.getElementById('overlayHideBtn');
 
 function loadSheetEmbed(){
   if(!sheetIframe) return;
-  // set src only once (lazy)
   if(!sheetIframe.dataset.srcset){
     sheetIframe.src = PUBLISHED_SHEET_EMBED;
     sheetIframe.dataset.srcset = "1";
   }
-  // show overlay until iframe loads or user hides
   sheetOverlay.style.display = 'flex';
   sheetOverlay.setAttribute('aria-hidden','false');
 
-  // install a one-time load handler to hide overlay if iframe loads successfully
   function onLoadOnce(){
-    // loaded: hide overlay
     sheetOverlay.style.display = 'none';
     sheetOverlay.setAttribute('aria-hidden','true');
     sheetIframe.removeEventListener('load', onLoadOnce);
   }
-  // attach load
   sheetIframe.addEventListener('load', onLoadOnce);
 
-  // fallback: after 3.5s, if still showing overlay, keep it (user can open in new tab)
   setTimeout(()=> {
     if(sheetOverlay.style.display !== 'none'){
-      // keep overlay visible — user can open sheet in new tab via button
-      // (we do not auto-hide; overlay offers actions)
+      // keep overlay visible so user can open in new tab
     }
   }, 3500);
 }
@@ -791,7 +769,7 @@ if(overlayHideBtn){
   });
 }
 
-/* ---------- Analytics rendering ---------- */
+/* analytics */
 let analyticsChart = null;
 function renderAnalyticsFromCache(){
   const rows = customerRowsCache || [];
@@ -845,56 +823,25 @@ function renderAnalyticsFromCache(){
     data: {
       labels: labels,
       datasets: [
-        {
-          label: 'Revenue',
-          data: revenueData,
-          yAxisID: 'y',
-          fill: true,
-          tension: 0.3,
-          pointRadius: 4,
-          backgroundColor: 'rgba(16,163,127,0.12)',
-          borderColor: 'rgba(16,163,127,0.9)'
-        },
-        {
-          label: 'Sales',
-          data: salesData,
-          yAxisID: 'y1',
-          fill: false,
-          tension: 0.3,
-          pointRadius: 4,
-          borderColor: 'rgba(100,100,255,0.9)',
-          backgroundColor: 'rgba(100,100,255,0.12)'
-        }
+        { label: 'Revenue', data: revenueData, yAxisID: 'y', fill: true, tension: 0.3, pointRadius: 4, backgroundColor: 'rgba(16,163,127,0.12)', borderColor: 'rgba(16,163,127,0.9)' },
+        { label: 'Sales', data: salesData, yAxisID: 'y1', fill: false, tension: 0.3, pointRadius: 4, borderColor: 'rgba(100,100,255,0.9)', backgroundColor: 'rgba(100,100,255,0.12)' }
       ]
     },
     options: {
       responsive: true,
       maintainAspectRatio: false,
       interaction: { mode:'index', intersect:false },
-      plugins: {
-        legend: { position:'top' }
-      },
+      plugins: { legend: { position:'top' } },
       scales: {
-        x: {
-          ticks: { maxRotation:0, autoSkip:true, maxTicksLimit:6 }
-        },
-        y: {
-          type: 'linear',
-          position: 'left',
-          ticks: { callback: v => '₹ '+Number(v).toLocaleString('en-IN') }
-        },
-        y1: {
-          type: 'linear',
-          position: 'right',
-          grid: { drawOnChartArea: false },
-          ticks: { stepSize:1 }
-        }
+        x: { ticks: { maxRotation:0, autoSkip:true, maxTicksLimit:6 } },
+        y: { type: 'linear', position: 'left', ticks: { callback: v => '₹ '+Number(v).toLocaleString('en-IN') } },
+        y1: { type: 'linear', position: 'right', grid: { drawOnChartArea: false }, ticks: { stepSize:1 } }
       }
     }
   });
 }
 
-/* ---------- keyboard nav ---------- */
+/* keyboard nav */
 document.addEventListener('keydown', (e)=>{
   if(e.key === '1') showView('dashboard');
   if(e.key === '2') showView('customer');
@@ -903,14 +850,10 @@ document.addEventListener('keydown', (e)=>{
   if(e.key === '5') showView('sheet');
 });
 
-/* ---------- top sellers pie will be initially rendered once fetch completes ---------- */
-
-/* ---------- initial UI setup ---------- */
+/* initial UI */
 function initialUI(){
-  // show dashboard on load
   showView('dashboard');
 
-  // mobile hamburger
   const hamburger = document.getElementById('hamburger');
   const sidebar = document.getElementById('sidebar');
   const topbar = document.getElementById('topbar');
@@ -930,13 +873,10 @@ function initialUI(){
       sidebar.classList.toggle('open');
     });
   }
-
-  // prevent duplicate stray nav text: ensure nav is not copied elsewhere - guard
   document.querySelectorAll('.nav-text-guard').forEach(n=>n.remove());
 }
 initialUI();
 
-/* expose fetch to console for debugging */
 window.debugFetch = fetchAndRender;
 </script>
 </body>
