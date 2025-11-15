@@ -5,11 +5,7 @@
   <meta name="viewport" content="width=device-width,initial-scale=1"/>
   <title>Void Store Dashboard</title>
 
-  <!-- FAVICON / APP ICONS -->
   <link rel="icon" href="https://i.ibb.co/sJqfn3w5/1761541971985.png" type="image/png">
-  <link rel="apple-touch-icon" sizes="180x180" href="https://i.ibb.co/sJqfn3w5/1761541971985.png">
-  <meta name="msapplication-TileImage" content="https://i.ibb.co/sJqfn3w5/1761541971985.png">
-
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
   <style>
@@ -20,9 +16,9 @@
       --glass: rgba(255,255,255,0.36);
       --glass-2: rgba(255,255,255,0.22);
       --card-border: rgba(255,255,255,0.36);
+      --nav-width: 220px;
     }
 
-    /* base */
     *{box-sizing:border-box;font-family:Inter,system-ui,Arial,Helvetica,sans-serif}
     html,body{height:100%;margin:0;background:linear-gradient(135deg,#c9d6ff 0%, #e2e2f0 100%);color:#222}
     h1,h2,h3,h4,h5,h6{margin:0;padding:0}
@@ -31,9 +27,9 @@
     /* layout */
     .layout{display:flex;min-height:100vh;align-items:stretch}
     .sidebar{
-      width:220px;padding:26px;border-right:1px solid rgba(255,255,255,0.28);
+      width:var(--nav-width);padding:26px;border-right:1px solid rgba(255,255,255,0.28);
       background:var(--glass-2);backdrop-filter:blur(10px);flex-shrink:0;
-      box-shadow: 0 6px 20px rgba(12,24,40,0.03);
+      box-shadow: 0 6px 20px rgba(12,24,40,0.03);position:relative;
     }
     .logo{display:flex;align-items:center;gap:10px;font-weight:800;color:var(--accent);margin-bottom:20px;font-size:18px}
     .logo img{height:36px;width:36px;border-radius:8px;object-fit:cover;box-shadow:0 4px 12px rgba(0,0,0,0.08)}
@@ -49,19 +45,11 @@
     /* top cards */
     .top{display:flex;gap:18px;flex-wrap:wrap;margin-bottom:18px}
     .card{
-      flex:1;min-width:220px;padding:18px;border-radius:14px;border:1px solid var(--card-border);
+      flex:1;min-width:180px;padding:18px;border-radius:14px;border:1px solid var(--card-border);
       background:var(--glass);backdrop-filter:blur(10px);box-shadow: 0 8px 30px rgba(20,30,60,0.04);
-      transform:translateY(6px);opacity:0;animation:fadeInUp .44s ease forwards;
     }
-    .card:nth-child(2){animation-delay:.06s}
-    .card:nth-child(3){animation-delay:.12s}
     .card h4{margin:0;color:#445;font-size:14px;font-weight:700}
     .big{font-size:20px;margin-top:8px;font-weight:800}
-
-    @keyframes fadeInUp{
-      from { transform: translateY(10px); opacity:0 }
-      to   { transform: translateY(0);  opacity:1 }
-    }
 
     .content{display:flex;gap:20px;align-items:flex-start}
     .left{flex:1;min-width:0}
@@ -71,10 +59,8 @@
     .panel{
       background:var(--glass);border:1px solid var(--card-border);backdrop-filter:blur(12px);
       padding:18px;border-radius:14px;margin-bottom:18px;box-shadow:0 6px 20px rgba(0,0,0,0.04);
-      transform:translateY(8px);opacity:0;animation:fadeInUp .46s ease forwards;
     }
-    .panel:nth-of-type(1){animation-delay:.06s}
-    .panel h3{font-size:18px;margin-bottom:8px;color:#1f2937}
+    .panel h3{font-size:18px;margin-bottom:12px;color:#1f2937}
 
     /* table */
     table{width:100%;border-collapse:collapse;margin-top:8px;table-layout:fixed}
@@ -83,13 +69,11 @@
       text-align:left;font-weight:700; background:transparent;
     }
     tbody td{
-      padding:14px 12px;border-bottom:1px solid rgba(0,0,0,0.03);font-size:14px;color:#28343a;
-      vertical-align:middle;
-      transition:background .18s ease, transform .12s ease;
+      padding:14px 12px;border-bottom:1px solid rgba(0,0,0,0.03);font-size:14px;color:#28343a;vertical-align:middle;
     }
     tbody tr:hover td{ background: rgba(255,255,255,0.28); transform: translateX(2px); }
 
-    /* column widths and spacing */
+    /* column widths */
     thead th:nth-child(1), tbody td:nth-child(1){ width:6%; text-align:center }
     thead th:nth-child(2), tbody td:nth-child(2){ width:38%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
     thead th:nth-child(3), tbody td:nth-child(3){ width:18%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; } /* status */
@@ -101,93 +85,83 @@
     .col-profit{ text-align:right; padding-right:22px; font-weight:600 }
     .col-date{ font-size:13px; color:#374151; white-space:nowrap; text-align:right }
 
-    /* ensure headers + cells vertically centered */
-    thead th, tbody td { vertical-align: middle; }
-
     /* badges */
     .status-badge{padding:6px 12px;border-radius:12px;font-weight:700;font-size:13px;display:inline-block}
     .status-paid{background:rgba(16,163,127,0.12);color:#056a52;border:1px solid rgba(16,163,127,0.09)}
     .status-pending{background:rgba(244,197,61,0.12);color:#8b5e00;border:1px solid rgba(244,197,61,0.08)}
     .status-active{background:rgba(16,163,127,0.12);color:#056a52;border:1px solid rgba(16,163,127,0.09)}
-    .status-badge{transform:scale(.96);transition:transform .18s ease}
-    .status-badge:hover{transform:scale(1)}
 
     /* search */
     .search-row{display:flex;gap:10px;align-items:center;margin-bottom:12px}
     .search-input{flex:1;padding:12px 14px;border-radius:12px;border:1px solid rgba(0,0,0,0.04);background:rgba(255,255,255,0.28);}
 
-    /* button for row */
-    .row-link{
-      display:inline-block;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,0.12);border:1px solid rgba(0,0,0,0.04);
-      font-weight:700;color:#0a2540;text-decoration:none;cursor:pointer;
-    }
-    .row-link:hover{background:rgba(255,255,255,0.22);transform:translateY(-2px)}
+    .row-link{display:inline-block;padding:6px 8px;border-radius:8px;background:rgba(255,255,255,0.12);border:1px solid rgba(0,0,0,0.04);font-weight:700;color:#0a2540;text-decoration:none;cursor:pointer;}
 
-    /* iframe area */
-    .iframe-container{position:relative;width:100%;min-height:640px;overflow:auto;border-radius:12px;border:1px solid var(--card-border);background:var(--glass-2);padding:12px}
-    .iframe-inner{width:100%;height:820px;border:0;display:block}
+    /* iframe */
+    .iframe-container{position:relative;width:100%;min-height:420px;overflow:hidden;border-radius:12px;border:1px solid var(--card-border);background:var(--glass-2);padding:12px}
+    .iframe-inner{width:100%;height:640px;border:0;display:block}
 
-    /* analytics chart area */
-    .analytics-chart { width:100%; height:420px; }
-
-    /* right column sticky */
-    .right .panel{position:sticky;top:22px}
-
-    /* fix: ensure small side charts have a stable height to avoid canvas stretching issues */
-    .right panel, .right .panel { min-height:340px; }
-    /* specifically force canvas height so ChartJS doesn't stretch it weirdly */
-    #profitChart, #analyticsChart { width:100% !important; height:320px !important; display:block; }
-
-    /* animation helpers for nav change */
-    .view{display:none;opacity:0;transform:translateY(6px);transition:opacity .28s ease, transform .28s ease}
-    .view.active{display:block;opacity:1;transform:none}
-
-    /* subtle hover for cards/panels */
-    .card:hover, .panel:hover{transform:translateY(-4px);box-shadow:0 14px 40px rgba(11,26,40,0.06)}
-
-    /* fonts & small */
-    .small{font-size:13px;color:#6b7280}
-
-    @media(max-width:1100px){
+    /* responsive / mobile */
+    .top, .content{transition:all .18s ease}
+    @media(max-width:1000px){
       .right{width:320px}
-      thead th:nth-child(2){width:40%}
-      thead th:nth-child(3){width:30%}
+      .top{gap:12px}
     }
     @media(max-width:900px){
+      /* collapse sidebar into top bar */
       .layout{flex-direction:column}
-      .sidebar{width:100%;display:flex;flex-direction:row;gap:12px;align-items:center}
-      .nav{display:flex;gap:8px}
-      .main{padding:18px}
+      .sidebar{position:fixed;left:0;top:0;bottom:0;width:var(--nav-width);transform:translateX(-100%);transition:transform .18s ease;z-index:60}
+      .sidebar.open{transform:translateX(0)}
+      .main{margin-left:0;padding:18px}
+      /* show small top bar with hamburger */
+      .topbar{display:flex;align-items:center;gap:12px;padding:12px}
+      .logo{margin:0}
+      .hamburger{width:42px;height:42px;border-radius:10px;background:var(--glass);display:flex;align-items:center;justify-content:center;box-shadow:0 6px 20px rgba(0,0,0,0.04);cursor:pointer}
       .content{flex-direction:column}
       .right{width:100%}
-      .iframe-inner{height:1200px}
-      .iframe-container{min-height:460px}
-      thead th:nth-child(2){width:50%}
-      thead th:nth-child(3){width:30%}
+      .iframe-inner{height:420px}
+      .iframe-container{min-height:300px}
+      table{font-size:13px}
+      /* make cards full width stacked */
+      .top { flex-direction:column; }
     }
 
+    /* small tweaks for charts and legend */
+    .chart-wrap{width:100%;height:320px}
+    @media(max-width:420px){ .chart-wrap{height:260px} }
+
+    /* visually hide duplicate text issue safeguard */
+    .nav-text-guard { display:none; } /* in case some stray element exists */
   </style>
 </head>
 <body>
   <div class="layout">
-    <aside class="sidebar">
-      <div class="logo">
-        <img src="https://i.ibb.co/sJqfn3w5/1761541971985.png" alt="Void Logo">
-        <span>Void Store</span>
+    <aside class="sidebar" id="sidebar">
+      <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:14px">
+        <div class="logo"><img src="https://i.ibb.co/sJqfn3w5/1761541971985.png" alt="Void Logo"><span>Void Store</span></div>
       </div>
-      <nav class="nav" aria-label="main nav">
-        <a id="nav-dashboard" class="active">Dashboard</a>
-        <a id="nav-customer">Customer Data</a>
-        <a id="nav-entry">Entry Form</a>
-        <a id="nav-invoice">Invoice Generator</a>
-        <a id="nav-sheet">Sheet View</a>
-        <a id="nav-analytics">Analytics</a>
+
+      <nav class="nav" aria-label="main nav" id="mainNav">
+        <a id="nav-dashboard" class="active" role="button">Dashboard</a>
+        <a id="nav-customer" role="button">Customer Data</a>
+        <a id="nav-entry" role="button">Entry Form</a>
+        <a id="nav-invoice" role="button">Invoice Generator</a>
+        <a id="nav-sheet" role="button">Sheet View</a>
+        <a id="nav-analytics" role="button">Analytics</a>
       </nav>
     </aside>
 
-    <main class="main">
-      <!-- Dashboard view -->
-      <section id="view-dashboard" class="view active">
+    <main class="main" id="main">
+      <!-- topbar for small screens -->
+      <div class="topbar" id="topbar" style="display:none">
+        <div class="hamburger" id="hamburger" title="Menu">
+          <svg width="18" height="14" viewBox="0 0 18 14" fill="none" xmlns="http://www.w3.org/2000/svg"><rect width="18" height="2" rx="1" fill="#1f2d3d"/><rect y="6" width="18" height="2" rx="1" fill="#1f2d3d"/><rect y="12" width="18" height="2" rx="1" fill="#1f2d3d"/></svg>
+        </div>
+        <div style="font-weight:800;font-size:18px">Void Store</div>
+      </div>
+
+      <!-- Dashboard -->
+      <section id="view-dashboard" class="view" aria-hidden="true">
         <div class="top">
           <div class="card"><h4>Total Earning</h4><div class="big" id="totalEarning">₹ 0.00</div></div>
           <div class="card"><h4>Total Orders</h4><div class="big" id="totalOrders">0</div></div>
@@ -198,7 +172,7 @@
           <div class="left">
             <div class="panel">
               <h3>Active Listing</h3>
-              <table id="entriesTableDashboard" aria-describedby="Active Listing">
+              <table id="entriesTableDashboard" aria-describedBy="Active Listing">
                 <thead>
                   <tr>
                     <th>No.</th>
@@ -217,7 +191,7 @@
           <aside class="right">
             <div class="panel">
               <h3>Profit by Product</h3>
-              <canvas id="profitChart"></canvas>
+              <div class="chart-wrap"><canvas id="profitChart"></canvas></div>
             </div>
 
             <div class="panel">
@@ -229,7 +203,7 @@
         </div>
       </section>
 
-      <!-- Customer Data view -->
+      <!-- Customer Data -->
       <section id="view-customer" class="view" aria-hidden="true">
         <div class="panel">
           <h3>Customer Data</h3>
@@ -257,66 +231,61 @@
         </div>
       </section>
 
-      <!-- Entry Form view (embedded google form) -->
+      <!-- Entry Form -->
       <section id="view-entry" class="view" aria-hidden="true">
         <div class="panel">
           <h3>Entry Form</h3>
           <div class="iframe-container">
-            <iframe class="iframe-inner"
-                    src="https://docs.google.com/forms/d/e/1FAIpQLSeOAk5-YgxpVINsL6v3_c2ggwS_MZ_iDQRz1679hAxW6DcgUw/viewform?embedded=true"
-                    title="Entry Form"></iframe>
+            <iframe class="iframe-inner" src="https://docs.google.com/forms/d/e/1FAIpQLSeOAk5-YgxpVINsL6v3_c2ggwS_MZ_iDQRz1679hAxW6DcgUw/viewform?embedded=true" title="Entry Form"></iframe>
           </div>
         </div>
       </section>
 
-      <!-- Invoice Generator view (embedded external page) -->
+      <!-- Invoice -->
       <section id="view-invoice" class="view" aria-hidden="true">
         <div class="panel">
           <h3>Invoice Generator</h3>
           <div class="iframe-container">
-            <iframe id="invoiceIframe" class="iframe-inner"
-              src="https://viraj69rip.github.io/Invoice-From-Void-PC-Games/"
-              title="Invoice Generator - Void PC Games"></iframe>
+            <iframe id="invoiceIframe" class="iframe-inner" src="https://viraj69rip.github.io/Invoice-From-Void-PC-Games/" title="Invoice Generator - Void PC Games"></iframe>
           </div>
         </div>
       </section>
 
-      <!-- Sheet View (embedded published Sheet) -->
+      <!-- Sheet -->
       <section id="view-sheet" class="view" aria-hidden="true">
         <div class="panel">
           <h3>Sheet View (embedded)</h3>
-
           <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
             <button id="openSheetBtn" style="padding:8px 12px;border-radius:8px;border:1px solid rgba(0,0,0,0.05);background:var(--glass-2)">Open Sheet in new tab</button>
             <span class="small" style="color:#475569">Published view is embedded below.</span>
           </div>
 
           <div class="iframe-container" style="min-height:560px">
-            <iframe id="sheetIframe" class="iframe-inner"
-              src=""
-              title="Google Sheet - embedded"></iframe>
+            <iframe id="sheetIframe" class="iframe-inner" src="" title="Google Sheet - embedded" allowfullscreen></iframe>
+            <!-- fallback message shown when embedding likely blocked -->
+            <p id="sheetFallback" style="display:none;margin-top:10px;color:#6b7280">
+              If the sheet does not appear inside this page (Google may restrict embedding), please use the "Open Sheet in new tab" button above.
+            </p>
           </div>
         </div>
       </section>
 
-      <!-- Analytics view -->
+      <!-- Analytics -->
       <section id="view-analytics" class="view" aria-hidden="true">
-        <div class="panel" style="margin-bottom:24px;">
-          <h2>Analytics</h2>
+        <div class="panel">
+          <h3>Analytics</h3>
           <p class="small">Overview and sales timeline</p>
 
-          <div class="top" style="margin-top:18px;">
-            <div class="card"><h4>Total revenues</h4><div class="big" id="analyticsTotalRevenue">₹ 0.00</div><div class="small"> </div></div>
-            <div class="card"><h4>Total sales</h4><div class="big" id="analyticsTotalSales">0</div><div class="small"> </div></div>
-            <div class="card"><h4>AOV</h4><div class="big" id="analyticsAOV">₹ 0.00</div><div class="small"> </div></div>
-            <div class="card"><h4>Total Profit</h4><div class="big" id="analyticsTotalProfit">₹ 0.00</div><div class="small"> </div></div>
+          <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px;margin-top:12px;margin-bottom:18px">
+            <div class="card"><h4>Total revenues</h4><div class="big" id="analyticsTotalRevenue">₹ 0.00</div></div>
+            <div class="card"><h4>Total sales</h4><div class="big" id="analyticsTotalSales">0</div></div>
+            <div class="card"><h4>AOV</h4><div class="big" id="analyticsAOV">₹ 0.00</div></div>
+            <div class="card"><h4>Total Profit</h4><div class="big" id="analyticsTotalProfit">₹ 0.00</div></div>
           </div>
-        </div>
 
-        <div class="panel">
-          <h3>Sales timeline</h3>
-          <div class="analytics-chart">
-            <canvas id="analyticsChart"></canvas>
+          <div class="panel" style="padding:12px">
+            <h3 style="margin-bottom:8px">Sales timeline</h3>
+            <div class="chart-wrap"><canvas id="analyticsChart"></canvas></div>
           </div>
         </div>
       </section>
@@ -328,16 +297,18 @@
 /* ---------- config ---------- */
 const SHEET_ID = "1Eat5aTUzw6Ck2fZG-Vf_d1g9WAMFTlNcZd0yLiotUJw";
 const SHEET_NAME = "Form responses 1";
-// Published URL you gave (used for sheet embed)
-const PUBLISHED_SHEET_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTP0XFeoA6vDt9mdjZyoXnUDBw3Whx5epnX0zvhvSdGDwnvQ7jBm-vEtHlzDA1q1nGCVxYVsanny9Ik/pubhtml?gid=2126430015&single=true";
+/* Slightly adjusted embed-friendly variation: widget=true & headers=false */
+const PUBLISHED_SHEET_URL_BASE = "https://docs.google.com/spreadsheets/d/e/2PACX-1vTP0XFeoA6vDt9mdjZyoXnUDBw3Whx5epnX0zvhvSdGDwnvQ7jBm-vEtHlzDA1q1nGCVxYVsanny9Ik/pubhtml";
+const PUBLISHED_SHEET_EMBED = PUBLISHED_SHEET_URL_BASE + "?gid=2126430015&single=true&widget=true&headers=false";
+const PUBLISHED_SHEET_FALLBACK = PUBLISHED_SHEET_URL_BASE + "?gid=2126430015&single=true"; // original fallback
 const FEED_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
 
-/* ---------- helpers ---------- */
+/* helpers */
 function escapeHtml(s){ return (s||"").toString().replace(/[&<>"']/g, m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m])); }
 function formatINR(n){ return "₹ "+Number(n||0).toLocaleString("en-IN",{minimumFractionDigits:2}); }
 function parseGoogleJSON(txt){ const s=txt.indexOf("{"), e=txt.lastIndexOf("}"); return JSON.parse(txt.slice(s,e+1)); }
 
-/* Robust date parser -> outputs dd/mm/yy and time */
+/* date parsing robust */
 function parseDT(cell){
   if(!cell) return {date:"", time:""};
   if(typeof cell.f === 'string'){
@@ -374,17 +345,7 @@ function parseDT(cell){
   return { date:"", time:"" };
 }
 
-/* convert dd/mm/yy (or dd/mm/yyyy) to ISO yyyy-mm-dd */
-function toISODate(ddmmyy){
-  if(!ddmmyy) return "";
-  const parts = ddmmyy.split('/');
-  if(parts.length < 3) return ddmmyy;
-  let d = parts[0].padStart(2,'0'), m = parts[1].padStart(2,'0'), y = parts[2];
-  if(y.length === 2) y = (Number(y) > 50 ? '19'+y : '20'+y);
-  return `${y}-${m}-${d}`;
-}
-
-/* ---------- view & nav ---------- */
+/* view & nav */
 const views = {
   dashboard: document.getElementById('view-dashboard'),
   customer: document.getElementById('view-customer'),
@@ -402,33 +363,41 @@ const navEls = {
   analytics: document.getElementById('nav-analytics')
 };
 
-function showView(name){
-  Object.values(views).forEach(v => { if(v){ v.classList.remove('active'); v.style.display='none'; v.setAttribute('aria-hidden','true'); }});
-  const next = views[name];
-  if(next){ next.style.display='block'; void next.offsetHeight; next.classList.add('active'); next.setAttribute('aria-hidden','false'); }
-  Object.values(navEls).forEach(n => { if(n) n.classList.remove('active') });
-  if(navEls[name]) navEls[name].classList.add('active');
-  try{ window.scrollTo({top:0,left:0,behavior:'instant'}) } catch(e){ window.scrollTo(0,0) }
-  // fetch fresh data so charts update when switching
-  fetchAndRender();
+function hideAllViews(){
+  Object.values(views).forEach(v => {
+    v.classList.remove('active');
+    if(v) { v.style.display='none'; v.setAttribute('aria-hidden','true'); }
+  });
+  Object.values(navEls).forEach(n => n.classList.remove('active'));
 }
 
-navEls.dashboard.addEventListener('click', ()=> showView('dashboard'));
-navEls.customer.addEventListener('click', ()=> showView('customer'));
-navEls.entry.addEventListener('click', ()=> showView('entry'));
-navEls.invoice.addEventListener('click', ()=> showView('invoice'));
-navEls.sheet.addEventListener('click', ()=> showView('sheet'));
-navEls.analytics.addEventListener('click', ()=> showView('analytics'));
+function showView(name){
+  hideAllViews();
+  const next = views[name];
+  if(next){
+    next.style.display='block';
+    void next.offsetHeight;
+    next.classList.add('active');
+    next.setAttribute('aria-hidden','false');
+  }
+  if(navEls[name]) navEls[name].classList.add('active');
+
+  // lazy actions
+  if(name === 'dashboard') fetchAndRender();
+  if(name === 'sheet') loadSheetEmbed();
+  if(name === 'analytics') { fetchAndRender(); renderAnalyticsFromCache(); } // reuse cache
+  // close mobile sidebar when selecting on small screens
+  if(window.innerWidth < 900) document.getElementById('sidebar').classList.remove('open');
+}
+
+Object.keys(navEls).forEach(k => {
+  navEls[k].addEventListener('click', ()=> showView(k));
+});
 
 /* ---------- fetch & render (robust header lookup) ---------- */
 let customerRowsCache = []; // will hold original array from sheet
 let headerIndex = {};       // header label (upper) => index in r.c[]
-let analyticsChart = null;
-let profitChart = null;
 
-/**
- * Build headerIndex map from gviz JSON table.cols
- */
 function buildHeaderMap(json){
   headerIndex = {};
   if(!json || !json.table || !Array.isArray(json.table.cols)) return;
@@ -438,13 +407,6 @@ function buildHeaderMap(json){
   });
 }
 
-/**
- * getCell - safe cell getter by header name
- * row: json.table.rows[n]
- * hdr: header name e.g. "PLATFORM FEES" or "PRODUCT SELL PRICE"
- * options:
- *   { asNumber: boolean } -> when true returns Number(cell.v || 0)
- */
 function getCell(row, hdr, options = {}){
   if(!row) return options.asNumber ? 0 : '';
   const idx = headerIndex[hdr.toUpperCase()];
@@ -460,25 +422,25 @@ function getCell(row, hdr, options = {}){
   return cell.v ?? (cell.f ?? '');
 }
 
-/* new fetch + render */
+/* fetch */
 function fetchAndRender(){
   fetch(FEED_URL).then(r => r.text()).then(txt => {
     const json = parseGoogleJSON(txt);
     buildHeaderMap(json);
-
     const rows = json.table.rows || [];
     customerRowsCache = rows.slice();
-
     renderDashboard(rows);
     renderCustomer(rows);
-    renderAnalytics(rows);
+    renderAnalyticsFromCache(); // update analytics if open
   }).catch(err=>{
     console.error("Sheet fetch error:", err);
   });
 }
+
+/* initial fetch */
 fetchAndRender();
 
-/* Badge helper */
+/* ---------- badges ---------- */
 function badge(status){
   if(!status) return '';
   const s = status.toString().toLowerCase();
@@ -488,7 +450,7 @@ function badge(status){
   return escapeHtml(status);
 }
 
-/* ---------- number animation helper ---------- */
+/* ---------- animate numbers ---------- */
 function animateValue(element, start, end, duration = 800, formatter = (n)=>String(n)) {
   const startTime = performance.now();
   const isInt = Number.isInteger(start) && Number.isInteger(end);
@@ -504,10 +466,11 @@ function animateValue(element, start, end, duration = 800, formatter = (n)=>Stri
   requestAnimationFrame(step);
 }
 
-/* ---------- renderDashboard (using header map) ---------- */
+/* ---------- renderDashboard ---------- */
+let _profitChart = null;
+
 function renderDashboard(rows){
   const tbody = document.querySelector("#entriesTableDashboard tbody");
-  if(!tbody) return;
   tbody.innerHTML = "";
   let totalEarning = 0, totalProfit = 0;
   const productProfit = {};
@@ -529,7 +492,6 @@ function renderDashboard(rows){
     productProfit[product] = (productProfit[product] || 0) + profit;
 
     const sheetRow = idx + 2;
-
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="col-number"><a class="row-link" data-row="${sheetRow}">${sheetRow}</a></td>
@@ -542,6 +504,7 @@ function renderDashboard(rows){
     tbody.appendChild(tr);
   });
 
+  // animate top cards
   const totalEarningEl = document.getElementById('totalEarning');
   const totalOrdersEl = document.getElementById('totalOrders');
   const totalProfitTopEl = document.getElementById('totalProfitTop');
@@ -558,10 +521,9 @@ function renderDashboard(rows){
   wireRowLinks();
 }
 
-/* ---------- renderCustomer (using header map) ---------- */
+/* ---------- renderCustomer ---------- */
 function renderCustomer(rows){
   const tbody = document.querySelector("#customerTable tbody");
-  if(!tbody) return;
   tbody.innerHTML = "";
   rows.forEach((r, idx) => {
     const dt = parseDT(r.c?.[ headerIndex['TIMESTAMP'] ]);
@@ -573,7 +535,6 @@ function renderCustomer(rows){
     const profit = (!isNaN(explicitProfit) && explicitProfit !== 0) ? explicitProfit : (price - Number(getCell(r,'PRODUCT BUY PRICE',{asNumber:true})||0) - platformFees);
 
     const sheetRow = idx + 2;
-
     const tr = document.createElement('tr');
     tr.innerHTML = `
       <td class="col-number"><a class="row-link" data-row="${sheetRow}">${sheetRow}</a></td>
@@ -589,158 +550,21 @@ function renderCustomer(rows){
   wireRowLinks();
 }
 
-/* ---------- Profit by Product chart (right panel) ----------
-   Fixes applied:
-   - Set maintainAspectRatio:false so canvas height is respected
-   - Compute reasonable suggestedMax so single bars don't blow chart scale
-   - Set maxBarThickness so bars don't become huge
-*/
+/* ---------- profit by product chart (bar) ---------- */
 function renderProfitByProductChart(obj){
-  const canvas = document.getElementById("profitChart");
-  if(!canvas) return;
-  if(profitChart) profitChart.destroy();
-
-  const labels = Object.keys(obj).filter(l => l && l.trim() !== '').length ? Object.keys(obj) : ['No data'];
-  const data = labels.map(l => obj[l] || 0);
-
-  // compute a reasonable suggested max so big single bar doesn't make chart vertical-only
-  const maxVal = data.length ? Math.max(...data.map(v => Math.abs(v))) : 0;
-  const suggestedMax = Math.ceil(maxVal * 1.25) || 10; // fallback to 10 if all zeros
-
-  profitChart = new Chart(canvas.getContext('2d'), {
+  const ctx = document.getElementById("profitChart").getContext("2d");
+  if(_profitChart) _profitChart.destroy();
+  _profitChart = new Chart(ctx,{
     type:'bar',
     data:{
-      labels: labels,
-      datasets:[{
-        label:'Profit',
-        data: data,
-        backgroundColor:'rgba(16,163,127,0.55)',
-        borderRadius: 6
-      }]
+      labels:Object.keys(obj),
+      datasets:[{ label:'Profit', data:Object.values(obj).map(v=>Number(v.toFixed? v : v)), backgroundColor:'rgba(75,192,150,0.8)' }]
     },
     options:{
       responsive:true,
       maintainAspectRatio:false,
       plugins:{ legend:{ display:false } },
-      scales:{
-        y:{
-          beginAtZero:true,
-          suggestedMax: suggestedMax,
-          grid:{ color: 'rgba(0,0,0,0.03)' }
-        },
-        x:{
-          grid:{ display:false }
-        }
-      },
-      elements:{
-        bar:{ maxBarThickness: 48 } // restrict bar width
-      }
-    }
-  });
-}
-
-/* ---------- Analytics rendering & chart ----------
-   Also now shows Total Profit in the top right card (analyticsTotalProfit).
-*/
-function renderAnalytics(rows){
-  if(!rows) rows = [];
-  const revenueByDate = {};
-  const salesByDate = {};
-  let totalRevenue = 0;
-  let totalSales = 0;
-  let totalProfit = 0;
-  const productsSet = new Set();
-
-  rows.forEach(r => {
-    const dt = parseDT(r.c?.[ headerIndex['TIMESTAMP'] ]);
-    const iso = toISODate(dt.date) || 'unknown';
-    const sell = Number(getCell(r, 'PRODUCT SELL PRICE', {asNumber:true}) || 0);
-    const platformFees = Number(getCell(r, 'PLATFORM FEES', {asNumber:true}) || 0);
-    const buy = Number(getCell(r, 'PRODUCT BUY PRICE', {asNumber:true}) || 0);
-    const explicitProfit = Number(getCell(r, 'PROFITS', {asNumber:true}));
-    const profit = (!isNaN(explicitProfit) && explicitProfit !== 0) ? explicitProfit : (sell - buy - platformFees || 0);
-
-    // revenue as sell (you can change to sell-platformFees if you prefer)
-    const revenue = sell;
-
-    revenueByDate[iso] = (revenueByDate[iso] || 0) + revenue;
-    salesByDate[iso] = (salesByDate[iso] || 0) + 1;
-    totalRevenue += revenue;
-    totalSales += 1;
-    totalProfit += profit;
-
-    const product = getCell(r, 'PRODUCT NAME') || getCell(r,'PRODUCT') || '';
-    if(product) productsSet.add(product);
-  });
-
-  const labels = Object.keys(revenueByDate).filter(d=>d!=='unknown').sort();
-  if(Object.keys(revenueByDate).includes('unknown')) labels.push('unknown');
-
-  const revenueData = labels.map(l => revenueByDate[l] || 0);
-  const salesData = labels.map(l => salesByDate[l] || 0);
-
-  const aov = totalSales ? (totalRevenue / totalSales) : 0;
-  document.getElementById('analyticsTotalRevenue').innerText = formatINR(totalRevenue);
-  document.getElementById('analyticsTotalSales').innerText = String(totalSales);
-  document.getElementById('analyticsAOV').innerText = formatINR(aov);
-  // updated: show total profit in the analytics summary (requested)
-  document.getElementById('analyticsTotalProfit').innerText = formatINR(totalProfit);
-
-  const canvas = document.getElementById('analyticsChart');
-  if(!canvas) return;
-  if(analyticsChart) analyticsChart.destroy();
-
-  const maxRevenue = revenueData.length ? Math.max(...revenueData) : 0;
-  analyticsChart = new Chart(canvas.getContext('2d'), {
-    type:'line',
-    data:{
-      labels: labels,
-      datasets:[
-        {
-          label: 'Revenue',
-          data: revenueData,
-          borderColor: 'rgba(16,123,215,0.95)',
-          backgroundColor: 'rgba(16,123,215,0.12)',
-          fill: true,
-          yAxisID: 'y',
-          tension: 0.25,
-          pointRadius: 4
-        },
-        {
-          label: 'Sales',
-          data: salesData,
-          borderColor: 'rgba(120,120,245,0.9)',
-          backgroundColor: 'rgba(120,120,245,0.08)',
-          fill: true,
-          yAxisID: 'y1',
-          tension: 0.25,
-          pointRadius: 3
-        }
-      ]
-    },
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
-      interaction:{ mode:'index', intersect:false },
-      plugins:{ legend:{ position:'top' } },
-      scales:{
-        x:{ grid:{ color: 'rgba(0,0,0,0.03)' }, ticks:{ maxRotation:0 } },
-        y:{
-          type:'linear',
-          position:'left',
-          ticks:{ callback: v => (typeof v === 'number' ? formatINR(v) : v) },
-          grid:{ color: 'rgba(0,0,0,0.03)' },
-          beginAtZero:true,
-          suggestedMax: Math.ceil(maxRevenue * 1.25) || 10
-        },
-        y1:{
-          type:'linear',
-          position:'right',
-          grid:{ drawOnChartArea:false },
-          beginAtZero:true,
-          ticks:{ callback: v => String(v) }
-        }
-      }
+      scales:{ y:{ beginAtZero:true } }
     }
   });
 }
@@ -767,13 +591,13 @@ if(clearBtn){
 
 function filterCustomerRows(query){
   const tbody = document.querySelector("#customerTable tbody");
-  if(!tbody) return;
   tbody.innerHTML = "";
   const rowsToShow = [];
   for(let i=0;i<customerRowsCache.length;i++){
     const r = customerRowsCache[i];
-    const name = (r.c?.[1]?.v || "").toString().toLowerCase();
-    if(!query || name.includes(query)) rowsToShow.push({r, idx:i});
+    // check common name columns safely
+    const maybeName = (getCell(r,'NAME') || getCell(r,'NAME OF CUSTOMER') || r.c?.[1]?.v || "").toString().toLowerCase();
+    if(!query || maybeName.includes(query)) rowsToShow.push({r, idx:i});
   }
   rowsToShow.forEach(item => {
     const r = item.r;
@@ -801,7 +625,7 @@ function filterCustomerRows(query){
   wireRowLinks();
 }
 
-/* ---------- row link wiring (open invoice) ---------- */
+/* ---------- row link wiring ---------- */
 function wireRowLinks(){
   document.querySelectorAll('.row-link').forEach(el=>{
     el.removeEventListener('click', onRowClick);
@@ -815,7 +639,7 @@ function onRowClick(ev){
   openInvoiceForRow(Number(row));
 }
 
-/* open invoice in iframe and show invoice view; also open new tab as convenience */
+/* open invoice */
 function openInvoiceForRow(rowNumber){
   const baseUrl = "https://viraj69rip.github.io/Invoice-From-Void-PC-Games/";
   const urlWithRow = baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'row=' + encodeURIComponent(rowNumber);
@@ -827,33 +651,215 @@ function openInvoiceForRow(rowNumber){
   window.open(urlWithRow, '_blank');
 }
 
-/* ---------- Sheet embed handling ---------- */
+/* ---------- Sheet embed (IMPROVED) ---------- */
 const sheetIframe = document.getElementById('sheetIframe');
 const openSheetBtn = document.getElementById('openSheetBtn');
-
 function loadSheetEmbed(){
   if(!sheetIframe) return;
-  sheetIframe.src = PUBLISHED_SHEET_URL;
+
+  // Hide fallback initially
+  const fallbackEl = document.getElementById('sheetFallback');
+  if(fallbackEl) fallbackEl.style.display = 'none';
+
+  // If already set, do nothing
+  if(sheetIframe.dataset.loaded === 'true') return;
+
+  // Try more embed-friendly variant first (widget + headers false)
+  let triedEmbed = false;
+  let onLoadCalled = false;
+  const embedUrl = PUBLISHED_SHEET_EMBED;
+  const fallbackUrl = PUBLISHED_SHEET_FALLBACK;
+
+  // set a short timeout to show fallback if onload doesn't fire (embedding blocked)
+  const failTimer = setTimeout(() => {
+    if(!onLoadCalled){
+      // show fallback message but keep iframe src (user can still try)
+      if(fallbackEl) fallbackEl.style.display = 'block';
+      // ensure iframe has at least the fallback URL so "Open in new tab" works
+      if(!sheetIframe.src) sheetIframe.src = fallbackUrl;
+    }
+  }, 1800); // 1.8s
+
+  sheetIframe.onload = function(){
+    onLoadCalled = true;
+    clearTimeout(failTimer);
+    sheetIframe.dataset.loaded = 'true';
+    // hide fallback if it was shown
+    if(fallbackEl) fallbackEl.style.display = 'none';
+    // good embed — keep it
+  };
+
+  // try embed URL first
+  try {
+    sheetIframe.src = embedUrl;
+    triedEmbed = true;
+  } catch(e){
+    // fallback
+    sheetIframe.src = fallbackUrl;
+  }
+
+  // final guard: if embedding blocked or browser blocks iframe, ensure fallback button remains helpful
+  if(openSheetBtn){
+    openSheetBtn.onclick = () => { window.open(fallbackUrl, '_blank'); };
+  }
 }
 if(openSheetBtn){
   openSheetBtn.addEventListener('click', ()=> {
-    window.open(PUBLISHED_SHEET_URL, '_blank');
+    // always open fallback link in new tab (published sheet)
+    window.open(PUBLISHED_SHEET_FALLBACK, '_blank');
   });
 }
 
-/* keyboard nav - 1..6 (6 = analytics) */
+/* ---------- Analytics rendering ---------- */
+let analyticsChart = null;
+function renderAnalyticsFromCache(){
+  const rows = customerRowsCache || [];
+  if(!rows) return;
+
+  // group by date
+  const byDate = {}; // date -> { revenue, sales, profit }
+  let totalRevenue = 0, totalProfit = 0, totalSales = 0;
+  rows.forEach(r=>{
+    const dt = parseDT(r.c?.[ headerIndex['TIMESTAMP'] ]);
+    const date = dt.date || 'Unknown';
+    const price = Number(getCell(r, 'PRODUCT SELL PRICE', {asNumber:true}) || 0);
+    const buy = Number(getCell(r, 'PRODUCT BUY PRICE', {asNumber:true}) || 0);
+    const fees = Number(getCell(r, 'PLATFORM FEES', {asNumber:true}) || 0);
+    const explicitProfit = Number(getCell(r, 'PROFITS', {asNumber:true}));
+    const profit = (!isNaN(explicitProfit) && explicitProfit !== 0) ? explicitProfit : (price - buy - fees || 0);
+
+    totalRevenue += price;
+    totalProfit += profit;
+    totalSales += 1;
+
+    if(!byDate[date]) byDate[date] = { revenue:0, sales:0, profit:0 };
+    byDate[date].revenue += price;
+    byDate[date].sales += 1;
+    byDate[date].profit += profit;
+  });
+
+  // sort dates (try to sort using dd/mm/yy -> yyyy-mm-dd)
+  const dateKeys = Object.keys(byDate).sort((a,b)=>{
+    function toIso(d){
+      if(!d || d === 'Unknown') return '9999-99-99';
+      const m = d.match(/(\d{2})\/(\d{2})\/(\d{2,4})/);
+      if(!m) return d;
+      const dd = m[1], mm = m[2], yy = m[3].length===2 ? ('20'+m[3]) : m[3];
+      return `${yy}-${mm}-${dd}`;
+    }
+    return toIso(a) > toIso(b) ? 1 : -1;
+  });
+
+  // build arrays
+  const labels = dateKeys;
+  const revenueData = labels.map(d => Number((byDate[d].revenue||0).toFixed(2)));
+  const salesData = labels.map(d => byDate[d].sales||0);
+
+  // update analytics cards
+  document.getElementById('analyticsTotalRevenue').textContent = formatINR(totalRevenue);
+  document.getElementById('analyticsTotalSales').textContent = String(totalSales);
+  document.getElementById('analyticsAOV').textContent = totalSales ? formatINR(totalRevenue/totalSales) : formatINR(0);
+  document.getElementById('analyticsTotalProfit').textContent = formatINR(totalProfit);
+
+  // chart with two datasets (revenue = left axis, sales = right axis)
+  const ctx = document.getElementById('analyticsChart').getContext('2d');
+  if(analyticsChart) analyticsChart.destroy();
+  analyticsChart = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: labels,
+      datasets: [
+        {
+          label: 'Revenue',
+          data: revenueData,
+          yAxisID: 'y',
+          fill: true,
+          tension: 0.3,
+          pointRadius: 4,
+          backgroundColor: 'rgba(16,163,127,0.12)',
+          borderColor: 'rgba(16,163,127,0.9)'
+        },
+        {
+          label: 'Sales',
+          data: salesData,
+          yAxisID: 'y1',
+          fill: false,
+          tension: 0.3,
+          pointRadius: 4,
+          borderColor: 'rgba(100,100,255,0.9)',
+          backgroundColor: 'rgba(100,100,255,0.12)'
+        }
+      ]
+    },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      interaction: { mode:'index', intersect:false },
+      plugins: {
+        legend: { position:'top' }
+      },
+      scales: {
+        x: {
+          ticks: { maxRotation:0, autoSkip:true, maxTicksLimit:6 }
+        },
+        y: {
+          type: 'linear',
+          position: 'left',
+          ticks: { callback: v => '₹ '+Number(v).toLocaleString('en-IN') }
+        },
+        y1: {
+          type: 'linear',
+          position: 'right',
+          grid: { drawOnChartArea: false },
+          ticks: { stepSize:1 }
+        }
+      }
+    }
+  });
+}
+
+/* ---------- keyboard nav ---------- */
 document.addEventListener('keydown', (e)=>{
   if(e.key === '1') showView('dashboard');
   if(e.key === '2') showView('customer');
   if(e.key === '3') showView('entry');
   if(e.key === '4') showView('invoice');
   if(e.key === '5') showView('sheet');
-  if(e.key === '6') showView('analytics');
 });
 
-/* initial */
-Object.values(views).forEach(v => { if(v && v.id !== 'view-dashboard') v.style.display='none'; });
-showView('dashboard');
+/* ---------- initial UI setup ---------- */
+function initialUI(){
+  // show dashboard on load
+  showView('dashboard');
+
+  // mobile hamburger
+  const hamburger = document.getElementById('hamburger');
+  const sidebar = document.getElementById('sidebar');
+  const topbar = document.getElementById('topbar');
+  function updateResponsive(){
+    if(window.innerWidth < 900){
+      topbar.style.display = 'flex';
+      sidebar.classList.remove('open');
+    } else {
+      topbar.style.display = 'none';
+      sidebar.classList.remove('open');
+    }
+  }
+  updateResponsive();
+  window.addEventListener('resize', updateResponsive);
+  if(hamburger){
+    hamburger.addEventListener('click', ()=> {
+      sidebar.classList.toggle('open');
+    });
+  }
+
+  // prevent duplicate stray nav text: ensure nav is not copied elsewhere - guard
+  document.querySelectorAll('.nav-text-guard').forEach(n=>n.remove());
+}
+initialUI();
+
+/* expose fetch to console for debugging */
+window.debugFetch = fetchAndRender;
 </script>
 </body>
 </html>
