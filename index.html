@@ -127,8 +127,16 @@
     .iframe-container{position:relative;width:100%;min-height:640px;overflow:auto;border-radius:12px;border:1px solid var(--card-border);background:var(--glass-2);padding:12px}
     .iframe-inner{width:100%;height:820px;border:0;display:block}
 
+    /* analytics chart area */
+    .analytics-chart { width:100%; height:420px; }
+
     /* right column sticky */
     .right .panel{position:sticky;top:22px}
+
+    /* fix: ensure small side charts have a stable height to avoid canvas stretching issues */
+    .right panel, .right .panel { min-height:340px; }
+    /* specifically force canvas height so ChartJS doesn't stretch it weirdly */
+    #profitChart, #analyticsChart { width:100% !important; height:320px !important; display:block; }
 
     /* animation helpers for nav change */
     .view{display:none;opacity:0;transform:translateY(6px);transition:opacity .28s ease, transform .28s ease}
@@ -173,6 +181,7 @@
         <a id="nav-entry">Entry Form</a>
         <a id="nav-invoice">Invoice Generator</a>
         <a id="nav-sheet">Sheet View</a>
+        <a id="nav-analytics">Analytics</a>
       </nav>
     </aside>
 
@@ -208,7 +217,7 @@
           <aside class="right">
             <div class="panel">
               <h3>Profit by Product</h3>
-              <canvas id="profitChart" height="220"></canvas>
+              <canvas id="profitChart"></canvas>
             </div>
 
             <div class="panel">
@@ -290,6 +299,28 @@
         </div>
       </section>
 
+      <!-- Analytics view -->
+      <section id="view-analytics" class="view" aria-hidden="true">
+        <div class="panel" style="margin-bottom:24px;">
+          <h2>Analytics</h2>
+          <p class="small">Overview and sales timeline</p>
+
+          <div class="top" style="margin-top:18px;">
+            <div class="card"><h4>Total revenues</h4><div class="big" id="analyticsTotalRevenue">₹ 0.00</div><div class="small"> </div></div>
+            <div class="card"><h4>Total sales</h4><div class="big" id="analyticsTotalSales">0</div><div class="small"> </div></div>
+            <div class="card"><h4>AOV</h4><div class="big" id="analyticsAOV">₹ 0.00</div><div class="small"> </div></div>
+            <div class="card"><h4>Total Profit</h4><div class="big" id="analyticsTotalProfit">₹ 0.00</div><div class="small"> </div></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h3>Sales timeline</h3>
+          <div class="analytics-chart">
+            <canvas id="analyticsChart"></canvas>
+          </div>
+        </div>
+      </section>
+
     </main>
   </div>
 
@@ -343,31 +374,43 @@ function parseDT(cell){
   return { date:"", time:"" };
 }
 
+/* convert dd/mm/yy (or dd/mm/yyyy) to ISO yyyy-mm-dd */
+function toISODate(ddmmyy){
+  if(!ddmmyy) return "";
+  const parts = ddmmyy.split('/');
+  if(parts.length < 3) return ddmmyy;
+  let d = parts[0].padStart(2,'0'), m = parts[1].padStart(2,'0'), y = parts[2];
+  if(y.length === 2) y = (Number(y) > 50 ? '19'+y : '20'+y);
+  return `${y}-${m}-${d}`;
+}
+
 /* ---------- view & nav ---------- */
 const views = {
   dashboard: document.getElementById('view-dashboard'),
   customer: document.getElementById('view-customer'),
   entry: document.getElementById('view-entry'),
   invoice: document.getElementById('view-invoice'),
-  sheet: document.getElementById('view-sheet')
+  sheet: document.getElementById('view-sheet'),
+  analytics: document.getElementById('view-analytics')
 };
 const navEls = {
   dashboard: document.getElementById('nav-dashboard'),
   customer: document.getElementById('nav-customer'),
   entry: document.getElementById('nav-entry'),
   invoice: document.getElementById('nav-invoice'),
-  sheet: document.getElementById('nav-sheet')
+  sheet: document.getElementById('nav-sheet'),
+  analytics: document.getElementById('nav-analytics')
 };
 
 function showView(name){
-  Object.values(views).forEach(v => { v.classList.remove('active'); v.style.display='none'; v.setAttribute('aria-hidden','true'); });
+  Object.values(views).forEach(v => { if(v){ v.classList.remove('active'); v.style.display='none'; v.setAttribute('aria-hidden','true'); }});
   const next = views[name];
   if(next){ next.style.display='block'; void next.offsetHeight; next.classList.add('active'); next.setAttribute('aria-hidden','false'); }
-  Object.values(navEls).forEach(n => n.classList.remove('active'));
+  Object.values(navEls).forEach(n => { if(n) n.classList.remove('active') });
   if(navEls[name]) navEls[name].classList.add('active');
   try{ window.scrollTo({top:0,left:0,behavior:'instant'}) } catch(e){ window.scrollTo(0,0) }
-  if(name === 'dashboard') fetchAndRender();
-  if(name === 'sheet') loadSheetEmbed(); // lazy load sheet iframe
+  // fetch fresh data so charts update when switching
+  fetchAndRender();
 }
 
 navEls.dashboard.addEventListener('click', ()=> showView('dashboard'));
@@ -375,10 +418,13 @@ navEls.customer.addEventListener('click', ()=> showView('customer'));
 navEls.entry.addEventListener('click', ()=> showView('entry'));
 navEls.invoice.addEventListener('click', ()=> showView('invoice'));
 navEls.sheet.addEventListener('click', ()=> showView('sheet'));
+navEls.analytics.addEventListener('click', ()=> showView('analytics'));
 
 /* ---------- fetch & render (robust header lookup) ---------- */
 let customerRowsCache = []; // will hold original array from sheet
 let headerIndex = {};       // header label (upper) => index in r.c[]
+let analyticsChart = null;
+let profitChart = null;
 
 /**
  * Build headerIndex map from gviz JSON table.cols
@@ -408,7 +454,6 @@ function getCell(row, hdr, options = {}){
   const cell = row.c?.[idx];
   if(!cell) return options.asNumber ? 0 : '';
   if(options.asNumber){
-    // coerce to number safely
     const v = Number(cell.v ?? 0);
     return isNaN(v) ? 0 : v;
   }
@@ -419,15 +464,14 @@ function getCell(row, hdr, options = {}){
 function fetchAndRender(){
   fetch(FEED_URL).then(r => r.text()).then(txt => {
     const json = parseGoogleJSON(txt);
-    // build header map once per pull
     buildHeaderMap(json);
 
     const rows = json.table.rows || [];
-    customerRowsCache = rows.slice(); // keep original index mapping
+    customerRowsCache = rows.slice();
 
-    // call updated render functions that use getCell(...)
     renderDashboard(rows);
     renderCustomer(rows);
+    renderAnalytics(rows);
   }).catch(err=>{
     console.error("Sheet fetch error:", err);
   });
@@ -445,18 +489,10 @@ function badge(status){
 }
 
 /* ---------- number animation helper ---------- */
-/**
- * animateValue - animate numbers using requestAnimationFrame
- * element: DOM element to update
- * start: numeric start value
- * end: numeric end value
- * duration: ms
- * formatter: function(number) -> string (how to format value for display)
- */
 function animateValue(element, start, end, duration = 800, formatter = (n)=>String(n)) {
   const startTime = performance.now();
   const isInt = Number.isInteger(start) && Number.isInteger(end);
-  function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); } // nicer easing
+  function easeOutCubic(t){ return 1 - Math.pow(1 - t, 3); }
   function step(now) {
     const elapsed = now - startTime;
     const progress = Math.min(1, elapsed / duration);
@@ -471,6 +507,7 @@ function animateValue(element, start, end, duration = 800, formatter = (n)=>Stri
 /* ---------- renderDashboard (using header map) ---------- */
 function renderDashboard(rows){
   const tbody = document.querySelector("#entriesTableDashboard tbody");
+  if(!tbody) return;
   tbody.innerHTML = "";
   let totalEarning = 0, totalProfit = 0;
   const productProfit = {};
@@ -484,7 +521,6 @@ function renderDashboard(rows){
     const platformFees = Number(getCell(r, 'PLATFORM FEES', {asNumber:true}) || 0);
     const status = String(getCell(r, 'PAYMENT STATUS') || getCell(r, 'STATUS') || '');
 
-    // profit: prefer explicit PROFITS column if present and non-zero, otherwise compute (sell - buy - platformFees)
     const explicitProfit = Number(getCell(r, 'PROFITS', {asNumber:true}));
     const profit = (!isNaN(explicitProfit) && explicitProfit !== 0) ? explicitProfit : (sell - buy - platformFees || 0);
 
@@ -492,7 +528,7 @@ function renderDashboard(rows){
     totalProfit += profit;
     productProfit[product] = (productProfit[product] || 0) + profit;
 
-    const sheetRow = idx + 2; // map to Google sheet row (first data row is row 2)
+    const sheetRow = idx + 2;
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -506,7 +542,6 @@ function renderDashboard(rows){
     tbody.appendChild(tr);
   });
 
-  // animate top cards
   const totalEarningEl = document.getElementById('totalEarning');
   const totalOrdersEl = document.getElementById('totalOrders');
   const totalProfitTopEl = document.getElementById('totalProfitTop');
@@ -519,13 +554,14 @@ function renderDashboard(rows){
   const totalProfitEl = document.getElementById('totalProfit');
   if(totalProfitEl) totalProfitEl.innerText = formatINR(totalProfit);
 
-  renderChart(productProfit);
-  wireRowLinks(); // attach click handlers for newly created links
+  renderProfitByProductChart(productProfit);
+  wireRowLinks();
 }
 
 /* ---------- renderCustomer (using header map) ---------- */
 function renderCustomer(rows){
   const tbody = document.querySelector("#customerTable tbody");
+  if(!tbody) return;
   tbody.innerHTML = "";
   rows.forEach((r, idx) => {
     const dt = parseDT(r.c?.[ headerIndex['TIMESTAMP'] ]);
@@ -536,7 +572,7 @@ function renderCustomer(rows){
     const explicitProfit = Number(getCell(r, 'PROFITS', {asNumber:true}));
     const profit = (!isNaN(explicitProfit) && explicitProfit !== 0) ? explicitProfit : (price - Number(getCell(r,'PRODUCT BUY PRICE',{asNumber:true})||0) - platformFees);
 
-    const sheetRow = idx + 2; // map to Google sheet row number
+    const sheetRow = idx + 2;
 
     const tr = document.createElement('tr');
     tr.innerHTML = `
@@ -553,17 +589,159 @@ function renderCustomer(rows){
   wireRowLinks();
 }
 
-/* chart */
-function renderChart(obj){
-  const ctx = document.getElementById("profitChart").getContext("2d");
-  if(window._chart) window._chart.destroy();
-  window._chart = new Chart(ctx,{
+/* ---------- Profit by Product chart (right panel) ----------
+   Fixes applied:
+   - Set maintainAspectRatio:false so canvas height is respected
+   - Compute reasonable suggestedMax so single bars don't blow chart scale
+   - Set maxBarThickness so bars don't become huge
+*/
+function renderProfitByProductChart(obj){
+  const canvas = document.getElementById("profitChart");
+  if(!canvas) return;
+  if(profitChart) profitChart.destroy();
+
+  const labels = Object.keys(obj).filter(l => l && l.trim() !== '').length ? Object.keys(obj) : ['No data'];
+  const data = labels.map(l => obj[l] || 0);
+
+  // compute a reasonable suggested max so big single bar doesn't make chart vertical-only
+  const maxVal = data.length ? Math.max(...data.map(v => Math.abs(v))) : 0;
+  const suggestedMax = Math.ceil(maxVal * 1.25) || 10; // fallback to 10 if all zeros
+
+  profitChart = new Chart(canvas.getContext('2d'), {
     type:'bar',
     data:{
-      labels:Object.keys(obj),
-      datasets:[{ label:'Profit', data:Object.values(obj), backgroundColor:'rgba(16,163,127,0.55)' }]
+      labels: labels,
+      datasets:[{
+        label:'Profit',
+        data: data,
+        backgroundColor:'rgba(16,163,127,0.55)',
+        borderRadius: 6
+      }]
     },
-    options:{ plugins:{ legend:{ display:false } }, scales:{ y:{ beginAtZero:true } } }
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      plugins:{ legend:{ display:false } },
+      scales:{
+        y:{
+          beginAtZero:true,
+          suggestedMax: suggestedMax,
+          grid:{ color: 'rgba(0,0,0,0.03)' }
+        },
+        x:{
+          grid:{ display:false }
+        }
+      },
+      elements:{
+        bar:{ maxBarThickness: 48 } // restrict bar width
+      }
+    }
+  });
+}
+
+/* ---------- Analytics rendering & chart ----------
+   Also now shows Total Profit in the top right card (analyticsTotalProfit).
+*/
+function renderAnalytics(rows){
+  if(!rows) rows = [];
+  const revenueByDate = {};
+  const salesByDate = {};
+  let totalRevenue = 0;
+  let totalSales = 0;
+  let totalProfit = 0;
+  const productsSet = new Set();
+
+  rows.forEach(r => {
+    const dt = parseDT(r.c?.[ headerIndex['TIMESTAMP'] ]);
+    const iso = toISODate(dt.date) || 'unknown';
+    const sell = Number(getCell(r, 'PRODUCT SELL PRICE', {asNumber:true}) || 0);
+    const platformFees = Number(getCell(r, 'PLATFORM FEES', {asNumber:true}) || 0);
+    const buy = Number(getCell(r, 'PRODUCT BUY PRICE', {asNumber:true}) || 0);
+    const explicitProfit = Number(getCell(r, 'PROFITS', {asNumber:true}));
+    const profit = (!isNaN(explicitProfit) && explicitProfit !== 0) ? explicitProfit : (sell - buy - platformFees || 0);
+
+    // revenue as sell (you can change to sell-platformFees if you prefer)
+    const revenue = sell;
+
+    revenueByDate[iso] = (revenueByDate[iso] || 0) + revenue;
+    salesByDate[iso] = (salesByDate[iso] || 0) + 1;
+    totalRevenue += revenue;
+    totalSales += 1;
+    totalProfit += profit;
+
+    const product = getCell(r, 'PRODUCT NAME') || getCell(r,'PRODUCT') || '';
+    if(product) productsSet.add(product);
+  });
+
+  const labels = Object.keys(revenueByDate).filter(d=>d!=='unknown').sort();
+  if(Object.keys(revenueByDate).includes('unknown')) labels.push('unknown');
+
+  const revenueData = labels.map(l => revenueByDate[l] || 0);
+  const salesData = labels.map(l => salesByDate[l] || 0);
+
+  const aov = totalSales ? (totalRevenue / totalSales) : 0;
+  document.getElementById('analyticsTotalRevenue').innerText = formatINR(totalRevenue);
+  document.getElementById('analyticsTotalSales').innerText = String(totalSales);
+  document.getElementById('analyticsAOV').innerText = formatINR(aov);
+  // updated: show total profit in the analytics summary (requested)
+  document.getElementById('analyticsTotalProfit').innerText = formatINR(totalProfit);
+
+  const canvas = document.getElementById('analyticsChart');
+  if(!canvas) return;
+  if(analyticsChart) analyticsChart.destroy();
+
+  const maxRevenue = revenueData.length ? Math.max(...revenueData) : 0;
+  analyticsChart = new Chart(canvas.getContext('2d'), {
+    type:'line',
+    data:{
+      labels: labels,
+      datasets:[
+        {
+          label: 'Revenue',
+          data: revenueData,
+          borderColor: 'rgba(16,123,215,0.95)',
+          backgroundColor: 'rgba(16,123,215,0.12)',
+          fill: true,
+          yAxisID: 'y',
+          tension: 0.25,
+          pointRadius: 4
+        },
+        {
+          label: 'Sales',
+          data: salesData,
+          borderColor: 'rgba(120,120,245,0.9)',
+          backgroundColor: 'rgba(120,120,245,0.08)',
+          fill: true,
+          yAxisID: 'y1',
+          tension: 0.25,
+          pointRadius: 3
+        }
+      ]
+    },
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{ legend:{ position:'top' } },
+      scales:{
+        x:{ grid:{ color: 'rgba(0,0,0,0.03)' }, ticks:{ maxRotation:0 } },
+        y:{
+          type:'linear',
+          position:'left',
+          ticks:{ callback: v => (typeof v === 'number' ? formatINR(v) : v) },
+          grid:{ color: 'rgba(0,0,0,0.03)' },
+          beginAtZero:true,
+          suggestedMax: Math.ceil(maxRevenue * 1.25) || 10
+        },
+        y1:{
+          type:'linear',
+          position:'right',
+          grid:{ drawOnChartArea:false },
+          beginAtZero:true,
+          ticks:{ callback: v => String(v) }
+        }
+      }
+    }
   });
 }
 
@@ -589,6 +767,7 @@ if(clearBtn){
 
 function filterCustomerRows(query){
   const tbody = document.querySelector("#customerTable tbody");
+  if(!tbody) return;
   tbody.innerHTML = "";
   const rowsToShow = [];
   for(let i=0;i<customerRowsCache.length;i++){
@@ -624,7 +803,6 @@ function filterCustomerRows(query){
 
 /* ---------- row link wiring (open invoice) ---------- */
 function wireRowLinks(){
-  // attach click to all .row-link elements
   document.querySelectorAll('.row-link').forEach(el=>{
     el.removeEventListener('click', onRowClick);
     el.addEventListener('click', onRowClick);
@@ -641,14 +819,11 @@ function onRowClick(ev){
 function openInvoiceForRow(rowNumber){
   const baseUrl = "https://viraj69rip.github.io/Invoice-From-Void-PC-Games/";
   const urlWithRow = baseUrl + (baseUrl.includes('?') ? '&' : '?') + 'row=' + encodeURIComponent(rowNumber);
-  // set iframe src (so embedded generator sees row param if it reads query)
   const iframe = document.getElementById('invoiceIframe');
   if(iframe){
     iframe.src = urlWithRow;
   }
-  // switch to invoice view
   showView('invoice');
-  // also open in new tab so user can print/share immediately
   window.open(urlWithRow, '_blank');
 }
 
@@ -658,23 +833,22 @@ const openSheetBtn = document.getElementById('openSheetBtn');
 
 function loadSheetEmbed(){
   if(!sheetIframe) return;
-  // Use the published URL you provided
-  sheetIframe.src = PUBLISHED_SHEET_URL;  
+  sheetIframe.src = PUBLISHED_SHEET_URL;
 }
 if(openSheetBtn){
   openSheetBtn.addEventListener('click', ()=> {
-    // open the published page or the edit view in new tab
     window.open(PUBLISHED_SHEET_URL, '_blank');
   });
 }
 
-/* keyboard nav - 1..5 (5 = sheet) */
+/* keyboard nav - 1..6 (6 = analytics) */
 document.addEventListener('keydown', (e)=>{
   if(e.key === '1') showView('dashboard');
   if(e.key === '2') showView('customer');
   if(e.key === '3') showView('entry');
   if(e.key === '4') showView('invoice');
   if(e.key === '5') showView('sheet');
+  if(e.key === '6') showView('analytics');
 });
 
 /* initial */
